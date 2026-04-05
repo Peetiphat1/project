@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Route {
+  id         String   @id @default(cuid())
+  name       String
+  distance   Float
+  elevation  Float
+  terrain    String
+  notes      String?
+  isFavorite Boolean  @default(false)
+  
+  // Fake props to support placeholder UI rendering smoothly
+  location   String?  @default("Local route")
+  surface    String?
+  difficulty String?  @default("Moderate")
+  lastRun    String?
+  pathPoints String?  @default("15,80 50,60 85,75 120,55 150,65 185,50 210,60")
+  color      String?  @default("#ea580c")
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Gear {
+  id              String   @id @default(cuid())
+  brandModel      String
+  dateAcquired    String
+  startingMileage Float    @default(0)
+  targetLifespan  Float
+  status          String   @default("Active")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

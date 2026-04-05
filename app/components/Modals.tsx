@@ -15,6 +15,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent } from 'react'
+import { routeSchema, gearSchema } from '@/lib/validations'
 import {
   X,
   Trash2,
@@ -428,7 +429,7 @@ const terrainOptions = [
   { value: 'treadmill', label: 'Treadmill' },
 ]
 
-export function AddRouteModal({ onClose }: { onClose: () => void }) {
+export function AddRouteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
   const [form, setForm] = useState<AddRouteForm>({
     name: '', distance: '', elevation: '', terrain: '',
   })
@@ -444,16 +445,33 @@ export function AddRouteModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setSubmitted(true)
-    const errs = validateRoute(form)
-    setErrors(errs)
-    if (Object.keys(errs).length > 0) {
+    const payload = {
+      name: form.name.trim(),
+      distance: parseFloat(form.distance),
+      elevation: parseFloat(form.elevation || '0'),
+      terrain: form.terrain || 'Road',
+      isFavorite: false,
+    }
+    const result = routeSchema.safeParse(payload)
+    if (!result.success) {
+      const errs: any = {}
+      result.error.issues.forEach(iss => { errs[iss.path[0]] = iss.message })
+      setErrors(errs)
       setBanner('error')
       return
     }
-    // TODO: call your server action / Prisma create here
-    setBanner('success')
+    setErrors({})
+    try {
+      const res = await fetch('/api/routes', { method: 'POST', body: JSON.stringify(result.data) })
+      if (!res.ok) throw new Error()
+      setBanner('success')
+      if (onSuccess) onSuccess()
+      setTimeout(onClose, 800)
+    } catch {
+      setBanner('error')
+    }
   }
 
   return (
@@ -580,10 +598,12 @@ export function EditRouteModal({
   route,
   onClose,
   onDelete,
+  onSuccess,
 }: {
   route: RouteRecord
   onClose: () => void
   onDelete: (id: string) => void
+  onSuccess?: () => void
 }) {
   const [form, setForm] = useState<AddRouteForm>({
     name: route.name,
@@ -603,13 +623,33 @@ export function EditRouteModal({
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     setSubmitted(true)
-    const errs = validateRoute(form)
-    setErrors(errs)
-    if (Object.keys(errs).length > 0) { setBanner('error'); return }
-    // TODO: server action / Prisma update
-    setBanner('success')
+    const payload = {
+      name: form.name.trim(),
+      distance: parseFloat(form.distance),
+      elevation: parseFloat(form.elevation || '0'),
+      terrain: form.terrain || 'Road',
+      isFavorite: false,
+    }
+    const result = routeSchema.safeParse(payload)
+    if (!result.success) {
+      const errs: any = {}
+      result.error.issues.forEach(iss => { errs[iss.path[0]] = iss.message })
+      setErrors(errs)
+      setBanner('error')
+      return
+    }
+    setErrors({})
+    try {
+      const res = await fetch(`/api/routes/${route.id}`, { method: 'PUT', body: JSON.stringify(result.data) })
+      if (!res.ok) throw new Error()
+      setBanner('success')
+      if (onSuccess) onSuccess()
+      setTimeout(onClose, 800)
+    } catch {
+      setBanner('error')
+    }
   }
 
   return (
@@ -852,7 +892,7 @@ function PhotoDropZone({
   )
 }
 
-export function AddGearModal({ onClose }: { onClose: () => void }) {
+export function AddGearModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
   const [form, setForm] = useState<AddGearForm>({
     brand: '', model: '', dateAcquired: '', targetLifespan: '', photo: null,
   })
@@ -865,13 +905,33 @@ export function AddGearModal({ onClose }: { onClose: () => void }) {
     if (submitted) setErrors((e) => ({ ...e, [field]: undefined }))
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setSubmitted(true)
-    const errs = validateGearAdd(form)
-    setErrors(errs)
-    if (Object.keys(errs).length > 0) { setBanner('error'); return }
-    // TODO: server action / Prisma create
-    setBanner('success')
+    const payload = {
+      brandModel: `${form.brand} ${form.model}`.trim(),
+      dateAcquired: form.dateAcquired,
+      startingMileage: 0,
+      targetLifespan: parseInt(form.targetLifespan || '0', 10),
+      status: 'Active'
+    }
+    const result = gearSchema.safeParse(payload)
+    if (!result.success) {
+      const errs: any = {}
+      result.error.issues.forEach(iss => { errs[iss.path[0]] = iss.message })
+      setErrors(errs)
+      setBanner('error')
+      return
+    }
+    setErrors({})
+    try {
+      const res = await fetch('/api/gear', { method: 'POST', body: JSON.stringify(result.data) })
+      if (!res.ok) throw new Error()
+      setBanner('success')
+      if (onSuccess) onSuccess()
+      setTimeout(onClose, 800)
+    } catch {
+      setBanner('error')
+    }
   }
 
   return (
@@ -1141,9 +1201,13 @@ function MileageSlider({
 export function EditGearModal({
   gear,
   onClose,
+  onDelete,
+  onSuccess,
 }: {
   gear: GearRecord
   onClose: () => void
+  onDelete?: (id: string) => void
+  onSuccess?: () => void
 }) {
   const [form, setForm] = useState<EditGearForm>({
     brand: gear.brand,
@@ -1164,13 +1228,35 @@ export function EditGearModal({
     if (submitted) setErrors((e) => ({ ...e, [field]: undefined }))
   }
 
-  function handleSave() {
+  async function handleSave() {
     setSubmitted(true)
-    const errs = validateGearEdit(form)
-    setErrors(errs)
-    if (Object.keys(errs).length > 0) { setBanner('error'); return }
-    // TODO: server action / Prisma update
-    setBanner('success')
+    const payload = {
+      brandModel: `${form.brand} ${form.model}`.trim(),
+      dateAcquired: form.dateAcquired,
+      startingMileage: parseInt(String(form.mileage) || '0', 10),
+      targetLifespan: parseInt(String(form.targetLifespan) || '0', 10),
+      status: form.status === 'default' ? 'Default' : 
+              form.status === 'retiring' ? 'Retiring Soon' : 
+              form.status === 'retired' ? 'Retired' : 'Active'
+    }
+    const result = gearSchema.safeParse(payload)
+    if (!result.success) {
+      const errs: any = {}
+      result.error.issues.forEach(iss => { errs[iss.path[0]] = iss.message })
+      setErrors(errs)
+      setBanner('error')
+      return
+    }
+    setErrors({})
+    try {
+      const res = await fetch(`/api/gear/${gear.id}`, { method: 'PUT', body: JSON.stringify(result.data) })
+      if (!res.ok) throw new Error()
+      setBanner('success')
+      if (onSuccess) onSuccess()
+      setTimeout(onClose, 800)
+    } catch {
+      setBanner('error')
+    }
   }
 
   return (
@@ -1180,13 +1266,20 @@ export function EditGearModal({
         title="EDIT GEAR"
         onClose={onClose}
         rightSlot={
-          form.status && (
-            <span
-              className={`text-[10px] font-bold tracking-widest border px-2 py-1 rounded-sm ${statusColors[form.status as GearStatus]}`}
-            >
-              {statusOptions.find((o) => o.value === form.status)?.label?.toUpperCase()}
-            </span>
-          )
+          <div className="flex gap-2 items-center">
+            {onDelete && (
+              <DangerBtn id="eg-delete-btn" onClick={() => { onDelete(gear.id); onClose(); }}>
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </DangerBtn>
+            )}
+            {form.status && (
+              <span
+                className={`text-[10px] font-bold tracking-widest border px-2 py-1 rounded-sm ${statusColors[form.status as GearStatus]}`}
+              >
+                {statusOptions.find((o) => o.value === form.status)?.label?.toUpperCase()}
+              </span>
+            )}
+          </div>
         }
       />
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus,
   TrendingUp,
@@ -27,114 +27,33 @@ import {
 interface Route {
   id: string
   name: string
-  location: string
-  distance: string
-  elevation: string
-  surface: string
-  difficulty: 'Easy' | 'Moderate' | 'Hard'
-  lastRun: string
-  isFavorite: boolean
-  isActive: boolean
-  pathPoints: string
-  color: string
+  location?: string
+  distance: number
+  elevation: number
+  surface?: string
   terrain: string
+  difficulty?: 'Easy' | 'Moderate' | 'Hard'
+  lastRun?: string
+  isFavorite: boolean
+  pathPoints?: string
+  color?: string
+  notes?: string
 }
 
-// ── Static data ────────────────────────────────────────────────────────────
-const routes: Route[] = [
-  {
-    id: 'kathu-trail',
-    name: 'Kathu Trail Loop',
-    location: 'Kathu, Phuket',
-    distance: '14.2',
-    elevation: '312',
-    surface: 'Trail',
-    difficulty: 'Hard',
-    lastRun: '2 days ago',
-    isFavorite: true,
-    isActive: true,
-    pathPoints: '15,95 40,70 65,80 90,45 120,60 145,35 170,50 195,25 215,40',
-    color: '#ea580c',
-    terrain: 'trail',
-  },
-  {
-    id: 'saphan-hin-loop',
-    name: 'Saphan Hin Loop',
-    location: 'Phuket City',
-    distance: '6.8',
-    elevation: '28',
-    surface: 'Pavement',
-    difficulty: 'Easy',
-    lastRun: 'Yesterday',
-    isFavorite: false,
-    isActive: true,
-    pathPoints: '15,80 50,60 85,75 120,55 150,65 185,50 210,60',
-    color: '#3b82f6',
-    terrain: 'road',
-  },
-  {
-    id: 'rawai-seafront',
-    name: 'Rawai Seafront Run',
-    location: 'Rawai, Phuket',
-    distance: '10.5',
-    elevation: '45',
-    surface: 'Pavement',
-    difficulty: 'Moderate',
-    lastRun: '4 days ago',
-    isFavorite: true,
-    isActive: false,
-    pathPoints: '15,70 55,60 95,65 130,50 165,55 200,45 220,50',
-    color: '#22c55e',
-    terrain: 'road',
-  },
-  {
-    id: 'nai-harn-hills',
-    name: 'Nai Harn Hills',
-    location: 'Nai Harn, Phuket',
-    distance: '18.3',
-    elevation: '487',
-    surface: 'Mixed',
-    difficulty: 'Hard',
-    lastRun: '1 week ago',
-    isFavorite: false,
-    isActive: false,
-    pathPoints: '15,90 35,65 60,75 85,40 110,55 140,30 165,45 190,20 215,35',
-    color: '#a855f7',
-    terrain: 'mixed',
-  },
-  {
-    id: 'chalong-temple',
-    name: 'Chalong Temple Circuit',
-    location: 'Chalong, Phuket',
-    distance: '8.7',
-    elevation: '62',
-    surface: 'Pavement',
-    difficulty: 'Easy',
-    lastRun: '3 days ago',
-    isFavorite: false,
-    isActive: false,
-    pathPoints: '15,75 50,65 85,70 120,58 150,62 185,55 215,60',
-    color: '#f59e0b',
-    terrain: 'road',
-  },
-]
-
-const focusRoute = routes[0]
-
 // ── Helper components ──────────────────────────────────────────────────────
-const difficultyStyles: Record<Route['difficulty'], string> = {
+const difficultyStyles: Record<string, string> = {
   Easy: 'bg-green-50 text-green-700 border-green-200',
   Moderate: 'bg-amber-50 text-amber-700 border-amber-200',
   Hard: 'bg-red-50 text-red-700 border-red-200',
 }
 
 function MiniMap({
-  points,
-  color,
+  points = '15,80 50,60 85,75 120,55 150,65 185,50 210,60', // fallback
+  color = '#3b82f6',
   routeName,
 }: {
-  points: string
-  color: string
+  points?: string
+  color?: string
   routeName: string
 }) {
   return (
@@ -174,7 +93,6 @@ function MiniMap({
   )
 }
 
-// RouteCard receives onEdit callback so the Client Component state stays at page level
 function RouteCard({
   route,
   isSelected,
@@ -184,6 +102,9 @@ function RouteCard({
   isSelected: boolean
   onEdit: (r: Route) => void
 }) {
+  const difficulty = route.difficulty || 'Moderate'
+  const surface = route.surface || route.terrain || 'Mixed'
+
   return (
     <article
       id={`route-card-${route.id}`}
@@ -196,7 +117,6 @@ function RouteCard({
       aria-label={`Route: ${route.name}`}
       aria-selected={isSelected}
     >
-      {/* Header row */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -207,21 +127,20 @@ function RouteCard({
           </div>
           <p className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
             <MapPin className="w-3 h-3" aria-hidden="true" />
-            {route.location}
+            {route.location || 'Local Route'}
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
           <span
-            className={`text-[10px] font-bold tracking-wider border px-1.5 py-0.5 rounded-sm ${difficultyStyles[route.difficulty]}`}
+            className={`text-[10px] font-bold tracking-wider border px-1.5 py-0.5 rounded-sm ${difficultyStyles[difficulty]}`}
           >
-            {route.difficulty.toUpperCase()}
+            {difficulty.toUpperCase()}
           </span>
           {isSelected && (
             <span className="text-[10px] font-bold tracking-wider bg-orange-600 text-white px-1.5 py-0.5 rounded-sm">
               FOCUS
             </span>
           )}
-          {/* ── Edit button ── */}
           <button
             id={`edit-route-card-btn-${route.id}`}
             onClick={(e) => { e.stopPropagation(); onEdit(route) }}
@@ -237,9 +156,9 @@ function RouteCard({
 
       <div className="mt-3 grid grid-cols-3 gap-2">
         {[
-          { icon: Navigation, label: 'Dist', value: route.distance, unit: 'km' },
-          { icon: TrendingUp, label: 'Elev', value: route.elevation, unit: 'm' },
-          { icon: Clock, label: 'Last', value: route.lastRun, unit: '' },
+          { icon: Navigation, label: 'Dist', value: String(route.distance), unit: 'km' },
+          { icon: TrendingUp, label: 'Elev', value: String(route.elevation), unit: 'm' },
+          { icon: Clock, label: 'Last', value: route.lastRun || 'N/A', unit: '' },
         ].map(({ icon: Icon, label, value, unit }) => (
           <div key={label} className="flex flex-col">
             <span className="flex items-center gap-0.5 text-[9px] font-bold tracking-widest text-slate-400 uppercase">
@@ -257,7 +176,7 @@ function RouteCard({
       <div className="mt-3 flex items-center justify-between">
         <span className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-sm">
           <Layers className="w-3 h-3" aria-hidden="true" />
-          {route.surface.toUpperCase()}
+          {surface.toUpperCase()}
         </span>
         <ChevronRight className="w-3.5 h-3.5 text-orange-500" aria-hidden="true" />
       </div>
@@ -265,7 +184,6 @@ function RouteCard({
   )
 }
 
-// ── Elevation graph ────────────────────────────────────────────────────────
 function ElevationGraph() {
   const points = [
     [0, 85], [30, 72], [60, 80], [90, 55], [120, 65],
@@ -276,9 +194,9 @@ function ElevationGraph() {
   const fillD = `${pathD} L 390 100 L 0 100 Z`
 
   return (
-    <div className="relative h-28 bg-slate-50 rounded-sm overflow-hidden" role="img" aria-label="Elevation profile graph for Kathu Trail Loop">
+    <div className="relative h-28 bg-slate-50 rounded-sm overflow-hidden" role="img" aria-label="Elevation profile graph">
       <div className="absolute left-2 inset-y-0 flex flex-col justify-between py-2 pointer-events-none">
-        {['487m', '350m', '200m', '0m'].map((label) => (
+        {['Max', 'Mid', 'Avg', '0m'].map((label) => (
           <span key={label} className="text-[9px] font-mono text-slate-400 leading-none">{label}</span>
         ))}
       </div>
@@ -291,18 +209,13 @@ function ElevationGraph() {
         <circle cx="210" cy="28" r="4" fill="#ea580c" />
         <circle cx="210" cy="28" r="7" fill="#ea580c" fillOpacity="0.2" />
       </svg>
-      <div className="absolute bottom-1 left-8 right-0 flex justify-between px-2 pointer-events-none">
-        {['0 km', '3.5', '7.1', '10.6', '14.2'].map((label) => (
-          <span key={label} className="text-[9px] font-mono text-slate-400 leading-none">{label}</span>
-        ))}
-      </div>
     </div>
   )
 }
 
-// ── Large map ──────────────────────────────────────────────────────────────
 function LargeMap({ route }: { route: Route }) {
   const points = '30,220 80,165 130,190 190,110 250,140 310,80 370,115 430,55 490,90 540,70'
+  const routeColor = route.color || '#ea580c'
 
   return (
     <div className="relative bg-slate-100 rounded-sm overflow-hidden" style={{ height: '340px' }} role="img" aria-label={`Detailed map for ${route.name}`}>
@@ -319,13 +232,13 @@ function LargeMap({ route }: { route: Route }) {
       <div className="absolute bottom-16 left-32 w-20 h-16 rounded-full bg-slate-200 opacity-50" aria-hidden="true" />
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 570 340" preserveAspectRatio="none">
         <polyline points={points} stroke="rgba(0,0,0,0.1)" strokeWidth="6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points={points} stroke={route.color} strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={points} stroke={routeColor} strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         <polyline points={points} stroke="white" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="8 12" opacity="0.6" />
         <circle cx="30" cy="220" r="7" fill="#22c55e" />
         <circle cx="30" cy="220" r="12" fill="#22c55e" fillOpacity="0.2" />
         <circle cx="540" cy="70" r="7" fill="#ef4444" />
         <circle cx="540" cy="70" r="12" fill="#ef4444" fillOpacity="0.2" />
-        <circle cx="310" cy="80" r="5" fill="white" stroke={route.color} strokeWidth="2" />
+        <circle cx="310" cy="80" r="5" fill="white" stroke={routeColor} strokeWidth="2" />
       </svg>
       <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-sm px-2 py-1 border border-slate-200">
         <span className="text-[10px] font-mono font-bold text-slate-600">{route.distance} km · {route.elevation} m elev.</span>
@@ -333,15 +246,10 @@ function LargeMap({ route }: { route: Route }) {
       <div className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-sm border border-slate-200 flex items-center justify-center">
         <Navigation className="w-4 h-4 text-slate-600" aria-label="North" />
       </div>
-      <div className="absolute bottom-3 left-3 flex items-end gap-1">
-        <div className="w-16 h-1.5 bg-slate-700 rounded-sm" aria-hidden="true" />
-        <span className="text-[9px] font-mono text-slate-600">2 km</span>
-      </div>
     </div>
   )
 }
 
-// ── Stat box ───────────────────────────────────────────────────────────────
 function StatBox({ id, icon: Icon, label, value, sub }: { id: string; icon: React.ElementType; label: string; value: string; sub: string }) {
   return (
     <div id={id} className="bg-[#F5F5F3] border border-slate-200 rounded-sm p-3 flex flex-col gap-1">
@@ -357,31 +265,60 @@ function StatBox({ id, icon: Icon, label, value, sub }: { id: string; icon: Reac
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function RoutesPage() {
-  // ── Modal state ──────────────────────────────────────────────────────────
+  const [routes, setRoutes] = useState<Route[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [focusRoute, setFocusRoute] = useState<Route | null>(null)
+
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<RouteRecord | null>(null)
+
+  const fetchRoutes = async () => {
+    try {
+      const res = await fetch('/api/routes')
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setRoutes(data)
+      if (data.length > 0 && (!focusRoute || !data.find((d: Route) => d.id === focusRoute.id))) {
+        setFocusRoute(data[0])
+      } else if (data.length === 0) {
+        setFocusRoute(null)
+      }
+    } catch (err) {
+      console.error('Failed to load routes')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRoutes()
+  }, [])
 
   function openEdit(route: Route) {
     setEditTarget({
       id: route.id,
       name: route.name,
-      distance: route.distance,
-      elevation: route.elevation,
+      distance: String(route.distance),
+      elevation: String(route.elevation),
       terrain: route.terrain,
     })
   }
 
-  function handleDelete(id: string) {
-    // TODO: wire to Prisma delete server action
-    console.log('delete route', id)
-    setEditTarget(null)
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/routes/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setEditTarget(null)
+        fetchRoutes()
+      }
+    } catch {
+      console.error('Failed to delete route')
+    }
   }
 
   return (
     <>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-
-        {/* ── Page header ─────────────────────────────────────── */}
         <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
             <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-1">
@@ -391,25 +328,22 @@ export default function RoutesPage() {
               MY ROUTES
             </h1>
             <p className="mt-2 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-              32 Saved Entries · 8 Favourites
+              {isLoading ? '...' : `${routes.length} Saved Entries`}
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
               id="routes-filter-btn"
-              aria-label="Filter routes"
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 bg-white rounded-sm hover:border-slate-300 hover:text-slate-900 uppercase transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 bg-white rounded-sm hover:border-slate-300 transition-colors shadow-sm uppercase"
             >
               <Filter className="w-3.5 h-3.5" aria-hidden="true" />
               Filter
             </button>
-
-            {/* ── Opens Add Route modal ── */}
             <button
               id="create-route-btn"
               onClick={() => setIsAddOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 transition-colors shadow-sm uppercase"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Create New Route
@@ -417,141 +351,117 @@ export default function RoutesPage() {
           </div>
         </header>
 
-        {/* ── Two-column grid ──────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
-
-          {/* ── Left: Scrollable route list ─────────────────── */}
           <aside aria-label="Saved routes list" className="lg:sticky lg:top-20">
             <div
               id="routes-list"
               className="space-y-3 overflow-y-auto pr-1"
               style={{ maxHeight: 'calc(100vh - 160px)' }}
             >
+              {isLoading && <p className="text-sm text-slate-500 animate-pulse">Loading routes...</p>}
+              {!isLoading && routes.length === 0 && (
+                <div className="p-4 bg-white border border-slate-200 rounded-sm text-center">
+                  <p className="text-sm text-slate-500">No routes found.</p>
+                </div>
+              )}
               {routes.map((route) => (
-                <RouteCard
-                  key={route.id}
-                  route={route}
-                  isSelected={route.id === 'kathu-trail'}
-                  onEdit={openEdit}
-                />
+                <div key={route.id} onClick={() => setFocusRoute(route)}>
+                  <RouteCard
+                    route={route}
+                    isSelected={focusRoute?.id === route.id}
+                    onEdit={openEdit}
+                  />
+                </div>
               ))}
             </div>
           </aside>
 
-          {/* ── Right: Detail / focus view ───────────────────── */}
           <section
             id="route-detail-panel"
-            aria-labelledby="current-focus-heading"
             className="bg-white border border-slate-200 rounded-sm shadow-sm p-5 flex flex-col gap-5"
           >
-            {/* Detail header */}
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">
-                  Current Focus
-                </p>
-                <h2 id="current-focus-heading" className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">
-                  {focusRoute.name}
-                </h2>
-                <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
-                  <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
-                  {focusRoute.location}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  id="bookmark-route-btn"
-                  aria-label="Bookmark this route"
-                  className="p-2 rounded-sm border border-slate-200 text-slate-400 hover:text-amber-400 hover:border-amber-300 transition-colors"
-                >
-                  <Bookmark className="w-4 h-4" aria-hidden="true" />
-                </button>
-                <button
-                  id="run-route-btn"
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors"
-                >
-                  <Zap className="w-3.5 h-3.5" aria-hidden="true" />
-                  Start Run
-                </button>
-              </div>
-            </div>
-
-            {/* Quick chips */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: focusRoute.surface, icon: Layers },
-                { label: focusRoute.difficulty, icon: BarChart2 },
-                { label: `Last run: ${focusRoute.lastRun}`, icon: Clock },
-              ].map(({ label, icon: Icon }) => (
-                <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
-                  <Icon className="w-3 h-3 text-slate-400" aria-hidden="true" />
-                  {label.toUpperCase()}
-                </span>
-              ))}
-            </div>
-
-            <LargeMap route={focusRoute} />
-
-            {/* Three stat boxes */}
-            <div id="route-stat-boxes" className="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Route conditions">
-              <StatBox id="stat-incline" icon={TrendingUp} label="Peak Incline" value="18.4°" sub="Max gradient on ascent" />
-              <StatBox id="stat-ambient" icon={Thermometer} label="Ambient Temp" value="27°C" sub="Avg at last run • Humid" />
-              <StatBox id="stat-surface" icon={Layers} label="Surface Mix" value="60/40" sub="Trail vs. packed dirt" />
-            </div>
-
-            {/* Elevation delta graph */}
-            <div id="elevation-delta-section">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                  <h3 className="text-xs font-bold tracking-widest text-slate-600 uppercase">Elevation Delta</h3>
+            {focusRoute ? (
+              <>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">
+                      Current Focus
+                    </p>
+                    <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">
+                      {focusRoute.name}
+                    </h2>
+                    <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
+                      <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
+                      {focusRoute.location || 'Local area'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors">
+                      <Zap className="w-3.5 h-3.5" />
+                      Start Run
+                    </button>
+                  </div>
                 </div>
-                <span className="font-mono text-xs font-bold text-orange-600">+312 / −298 m</span>
-              </div>
-              <ElevationGraph />
-              <div className="flex justify-between mt-2">
-                <span className="flex items-center gap-1 text-[10px] font-bold text-green-600">
-                  <div className="w-2 h-2 rounded-full bg-green-500" aria-hidden="true" />
-                  Start · 48m
-                </span>
-                <span className="flex items-center gap-1 text-[10px] font-bold text-red-500">
-                  End · 52m
-                  <div className="w-2 h-2 rounded-full bg-red-500" aria-hidden="true" />
-                </span>
-              </div>
-            </div>
 
-            {/* Action row — Edit Route opens modal */}
-            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
-              <button
-                id="edit-route-btn"
-                onClick={() => openEdit(focusRoute)}
-                className="flex-1 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 rounded-sm hover:border-orange-500 hover:text-orange-600 uppercase transition-all flex items-center justify-center gap-1.5"
-              >
-                <Pencil className="w-3 h-3" aria-hidden="true" />
-                Edit Route
-              </button>
-              <button
-                id="export-route-btn"
-                className="flex-1 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 rounded-sm hover:border-slate-300 hover:text-slate-900 uppercase transition-all"
-              >
-                Export GPX
-              </button>
-              <button
-                id="share-route-btn"
-                className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 text-white rounded-sm hover:bg-slate-700 uppercase transition-colors"
-              >
-                Share Route
-              </button>
-            </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: focusRoute.surface || focusRoute.terrain, icon: Layers },
+                    { label: focusRoute.difficulty || 'Moderate', icon: BarChart2 },
+                  ].map(({ label, icon: Icon }) => (
+                    <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
+                      <Icon className="w-3 h-3 text-slate-400" />
+                      {(label || '').toUpperCase()}
+                    </span>
+                  ))}
+                </div>
+
+                <LargeMap route={focusRoute} />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <StatBox id="stat-incline" icon={TrendingUp} label="Peak Incline" value="18.4°" sub="Max gradient expected" />
+                  <StatBox id="stat-ambient" icon={Thermometer} label="Ambient" value="27°C" sub="Usual temp" />
+                  <StatBox id="stat-surface" icon={Layers} label="Surface" value={focusRoute.terrain} sub="Primary mix" />
+                </div>
+
+                <div id="elevation-delta-section">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-slate-400" />
+                      <h3 className="text-xs font-bold tracking-widest text-slate-600 uppercase">Elevation Delta</h3>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-orange-600">{`+${focusRoute.elevation} m`}</span>
+                  </div>
+                  <ElevationGraph />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => openEdit(focusRoute)}
+                    className="flex-1 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 rounded-sm hover:border-orange-500 hover:text-orange-600 uppercase transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit Route
+                  </button>
+                  <button className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 text-white rounded-sm hover:bg-slate-700 uppercase transition-colors">
+                    Share Route
+                  </button>
+                </div>
+              </>
+            ) : (
+               <div className="py-20 text-center text-slate-400 flex flex-col items-center">
+                 <MapPin className="w-12 h-12 mb-4 opacity-50" />
+                 <p className="text-sm">Select a route or create a new one to view details.</p>
+               </div>
+            )}
           </section>
         </div>
       </div>
 
-      {/* ── MODALS (rendered at DOM root level via fixed positioning) ── */}
-
       {isAddOpen && (
-        <AddRouteModal onClose={() => setIsAddOpen(false)} />
+        <AddRouteModal
+          onClose={() => setIsAddOpen(false)}
+          onSuccess={fetchRoutes}
+        />
       )}
 
       {editTarget && (
@@ -559,6 +469,7 @@ export default function RoutesPage() {
           route={editTarget}
           onClose={() => setEditTarget(null)}
           onDelete={handleDelete}
+          onSuccess={fetchRoutes}
         />
       )}
     </>
