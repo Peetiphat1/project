@@ -422,11 +422,10 @@ function validateRoute(form: AddRouteForm): FieldErrors<RouteFields> {
 }
 
 const terrainOptions = [
-  { value: 'road', label: 'Road / Pavement' },
-  { value: 'trail', label: 'Trail' },
-  { value: 'track', label: 'Track' },
-  { value: 'mixed', label: 'Mixed Terrain' },
-  { value: 'treadmill', label: 'Treadmill' },
+  { value: 'Road', label: 'Road / Pavement' },
+  { value: 'Trail', label: 'Trail' },
+  { value: 'Technical', label: 'Technical / Track' },
+  { value: 'Mixed', label: 'Mixed Terrain' },
 ]
 
 export function AddRouteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
@@ -451,7 +450,7 @@ export function AddRouteModal({ onClose, onSuccess }: { onClose: () => void; onS
       name: form.name.trim(),
       distance: parseFloat(form.distance),
       elevation: parseFloat(form.elevation || '0'),
-      terrain: form.terrain || 'Road',
+      terrain: form.terrain,
       isFavorite: false,
     }
     const result = routeSchema.safeParse(payload)
@@ -629,7 +628,7 @@ export function EditRouteModal({
       name: form.name.trim(),
       distance: parseFloat(form.distance),
       elevation: parseFloat(form.elevation || '0'),
-      terrain: form.terrain || 'Road',
+      terrain: form.terrain,
       isFavorite: false,
     }
     const result = routeSchema.safeParse(payload)

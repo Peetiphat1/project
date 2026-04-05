@@ -32,11 +32,12 @@ interface Shoe {
   startingMileage: number
   targetLifespan: number
   status: string
-  mileage?: number // if added by us manually
+  isDefault: boolean
+  mileage?: number
 }
 
-function StatusTag({ status }: { status: string }) {
-  if (status.toLowerCase() === 'default') {
+function StatusTag({ status, isDefault }: { status: string; isDefault: boolean }) {
+  if (isDefault) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider bg-orange-600 text-white px-2 py-0.5 rounded-sm">
         <Star className="w-2.5 h-2.5 fill-white" aria-hidden="true" />
@@ -60,9 +61,8 @@ function StatusTag({ status }: { status: string }) {
   )
 }
 
-function WearBar({ pct, status }: { pct: number; status: string }) {
+function WearBar({ pct, isDefault, status }: { pct: number; isDefault: boolean; status: string }) {
   const isRetiring = status.toLowerCase() === 'retiring soon'
-  const isDefault = status.toLowerCase() === 'default'
   const barColor = isRetiring ? 'bg-red-500' : isDefault ? 'bg-orange-500' : 'bg-blue-500'
   
   return (
@@ -97,11 +97,11 @@ function ShoeIllustration({ color }: { color: string }) {
   )
 }
 
-function GearCard({ shoe, onEdit }: { shoe: Shoe; onEdit: (s: Shoe) => void }) {
+function GearCard({ shoe, onEdit, onSetDefault }: { shoe: Shoe; onEdit: (s: Shoe) => void; onSetDefault: (id: string) => void }) {
   const currentMileage = shoe.startingMileage || shoe.mileage || 0
   const pctUsed = Math.min(100, Math.round((currentMileage / shoe.targetLifespan) * 100))
   const remaining = Math.max(0, shoe.targetLifespan - currentMileage)
-  const isDefault = shoe.status.toLowerCase() === 'default'
+  const isDefault = shoe.isDefault
   const isRetiring = shoe.status.toLowerCase() === 'retiring soon'
 
   return (
@@ -127,7 +127,7 @@ function GearCard({ shoe, onEdit }: { shoe: Shoe; onEdit: (s: Shoe) => void }) {
           <div>
             <h2 className="font-extrabold text-slate-900 text-base leading-tight mt-1">{shoe.brandModel}</h2>
           </div>
-          <StatusTag status={shoe.status} />
+          <StatusTag status={shoe.status} isDefault={isDefault} />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -161,7 +161,7 @@ function GearCard({ shoe, onEdit }: { shoe: Shoe; onEdit: (s: Shoe) => void }) {
           </div>
         </div>
 
-        <WearBar pct={pctUsed} status={shoe.status} />
+        <WearBar pct={pctUsed} status={shoe.status} isDefault={isDefault} />
 
         <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Acquired {shoe.dateAcquired}</span>
@@ -173,7 +173,10 @@ function GearCard({ shoe, onEdit }: { shoe: Shoe; onEdit: (s: Shoe) => void }) {
               <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500" /> Current Default
             </button>
           ) : (
-            <button className="w-full py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors flex items-center justify-center gap-1.5">
+            <button
+              onClick={() => onSetDefault(shoe.id)}
+              className="w-full py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors flex items-center justify-center gap-1.5"
+            >
               <Star className="w-3.5 h-3.5" /> Set as Default
             </button>
           )}
@@ -234,6 +237,11 @@ export default function GearPage() {
 
   useEffect(() => { fetchGear() }, [])
 
+  async function handleSetDefault(id: string) {
+    const res = await fetch(`/api/gear/${id}/default`, { method: 'PUT' })
+    if (res.ok) fetchGear()
+  }
+
   function openEdit(shoe: Shoe) {
     setEditTarget({
       id: shoe.id,
@@ -271,7 +279,7 @@ export default function GearPage() {
           {isLoading && <p className="text-sm text-slate-500 animate-pulse">Loading gear roster...</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {activeShoes.map((shoe) => (
-              <GearCard key={shoe.id} shoe={shoe} onEdit={openEdit} />
+              <GearCard key={shoe.id} shoe={shoe} onEdit={openEdit} onSetDefault={handleSetDefault} />
             ))}
           </div>
         </section>
