@@ -33,6 +33,7 @@ interface Shoe {
   targetLifespan: number
   status: string
   isDefault: boolean
+  imageUrl?: string | null
   mileage?: number
 }
 
@@ -82,7 +83,15 @@ function WearBar({ pct, isDefault, status }: { pct: number; isDefault: boolean; 
   )
 }
 
-function ShoeIllustration({ color }: { color: string }) {
+function ShoeIllustration({ color, imageUrl }: { color: string; imageUrl?: string | null }) {
+  if (imageUrl) {
+    return (
+      <div className="relative w-full h-36 rounded-sm overflow-hidden bg-slate-50" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt="Shoe" className="w-full h-full object-cover" />
+      </div>
+    )
+  }
   return (
     <div className="relative w-full h-36 rounded-sm overflow-hidden flex items-center justify-center" style={{ backgroundColor: `${color}0f` }} aria-hidden="true">
       <svg viewBox="0 0 200 100" className="w-48 h-24 opacity-80" aria-hidden="true">
@@ -113,7 +122,7 @@ function GearCard({ shoe, onEdit, onSetDefault }: { shoe: Shoe; onEdit: (s: Shoe
       ].join(' ')}
     >
       <div className="relative">
-        <ShoeIllustration color={isDefault ? '#ea580c' : '#3b82f6'} />
+        <ShoeIllustration color={isDefault ? '#ea580c' : '#3b82f6'} imageUrl={shoe.imageUrl} />
         <button
           onClick={() => onEdit(shoe)}
           className="absolute top-2 left-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-sm border border-slate-200 text-slate-500 hover:text-orange-600 hover:border-orange-300 transition-all shadow-sm"

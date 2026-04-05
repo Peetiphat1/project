@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import {
   Sun,
@@ -20,6 +20,9 @@ import {
   Flame,
   ChevronRight,
   AlertTriangle,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -51,7 +54,122 @@ interface RouteData {
   createdAt: string
 }
 
+interface StravaActivity {
+  id: number
+  name: string
+  start_date_local: string
+  distance: number        // metres
+  moving_time: number     // seconds
+  total_elevation_gain: number
+  average_speed: number   // m/s
+  type: string
+  map: { summary_polyline: string }
+}
+
+interface WeeklyStats {
+  weeklyKm: string
+  avgPace: string
+  runCount: number
+}
+
+interface Milestone {
+  title: string
+  targetKm: number
+  currentKm: number
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function formatDistance(metres: number) {
+  return (metres / 1000).toFixed(2)
+}
+
+function formatMovingTime(seconds: number) {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function calcPace(metres: number, seconds: number) {
+  if (metres === 0) return '—'
+  const secPerKm = seconds / (metres / 1000)
+  const min = Math.floor(secPerKm / 60)
+  const sec = Math.round(secPerKm % 60)
+  return `${min}:${sec.toString().padStart(2, '0')}`
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────
+
+/** Decodes a Strava summary_polyline and renders it as a scaled SVG path */
+function PolylineMap({ polyline }: { polyline: string }) {
+  if (!polyline) {
+    return (
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 144" fill="none" aria-hidden="true">
+        <polyline points="20,110 60,85 100,95 130,60 170,70 210,45 260,55 300,30"
+          stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="20" cy="110" r="4" fill="#22c55e" />
+        <circle cx="300" cy="30" r="4" fill="#ef4444" />
+      </svg>
+    )
+  }
+
+  // Lazy-import polyline decoder only in browser
+  let coords: number[][] = []
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const polylineLib = require('@mapbox/polyline')
+    coords = polylineLib.decode(polyline) // [[lat,lng], ...]
+  } catch {
+    coords = []
+  }
+
+  if (coords.length < 2) {
+    return (
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 144" fill="none" aria-hidden="true">
+        <polyline points="20,110 60,85 100,95 130,60 170,70 210,45 260,55 300,30"
+          stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="20" cy="110" r="4" fill="#22c55e" />
+        <circle cx="300" cy="30" r="4" fill="#ef4444" />
+      </svg>
+    )
+  }
+
+  // Note: Strava [lat, lng] — use lng as X, lat as Y (flip Y for SVG)
+  const lngs = coords.map(([, lng]) => lng)
+  const lats = coords.map(([lat]) => lat)
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+  const W = 320, H = 144, PAD = 12
+  const scaleX = (maxLng - minLng) === 0 ? 1 : (W - PAD * 2) / (maxLng - minLng)
+  const scaleY = (maxLat - minLat) === 0 ? 1 : (H - PAD * 2) / (maxLat - minLat)
+
+  const points = coords
+    .map(([lat, lng]) => [
+      PAD + (lng - minLng) * scaleX,
+      H - PAD - (lat - minLat) * scaleY, // flip Y
+    ])
+    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ')
+
+  const [startX, startY] = [PAD + (lngs[0] - minLng) * scaleX, H - PAD - (lats[0] - minLat) * scaleY]
+  const [endX, endY] = [PAD + (lngs.at(-1)! - minLng) * scaleX, H - PAD - (lats.at(-1)! - minLat) * scaleY]
+
+  return (
+    <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} fill="none" aria-hidden="true">
+      <polyline points={points} stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={startX} cy={startY} r="4" fill="#22c55e" />
+      <circle cx={endX} cy={endY} r="4" fill="#ef4444" />
+    </svg>
+  )
+}
 
 function RunStat({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
@@ -62,6 +180,82 @@ function RunStat({ label, value, unit }: { label: string; value: string; unit: s
         <span className="text-xs text-slate-500 font-mono">{unit}</span>
       </div>
     </div>
+  )
+}
+
+function StravaCard({ activity, index }: { activity: StravaActivity; index: number }) {
+  const km = formatDistance(activity.distance)
+  const time = formatMovingTime(activity.moving_time)
+  const pace = calcPace(activity.distance, activity.moving_time)
+  const date = formatDate(activity.start_date_local)
+  const elev = Math.round(activity.total_elevation_gain)
+  const kcal = Math.round(activity.distance / 1000 * 62)
+
+  return (
+    <article
+      id={`strava-card-${index + 1}`}
+      className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200"
+      aria-label={`${activity.name} Strava run`}
+    >
+      {/* Polyline Map */}
+      <div className="relative h-36 bg-slate-100 overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="absolute w-full border-t border-slate-400" style={{ top: `${12 + i * 12}%` }} />
+          ))}
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="absolute h-full border-l border-slate-400" style={{ left: `${10 + i * 16}%` }} />
+          ))}
+        </div>
+        <PolylineMap polyline={activity.map?.summary_polyline ?? ''} />
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-sm shadow-sm">
+          <Activity className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
+          <span className="text-[10px] font-bold tracking-widest text-slate-700 uppercase">Strava {activity.type}</span>
+        </div>
+        <div className="absolute top-3 right-3 bg-orange-600 text-white text-[10px] font-bold tracking-widest px-2 py-1 rounded-sm">
+          SYNCED
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm leading-tight">{activity.name}</h3>
+            <p className="text-[11px] text-slate-400 tracking-wide mt-0.5 flex items-center gap-1">
+              <Clock className="w-3 h-3" aria-hidden="true" />
+              {date}
+            </p>
+          </div>
+          <button aria-label={`View details for ${activity.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors">
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+          <RunStat label="Distance" value={km} unit="km" />
+          <RunStat label="Time" value={time} unit="" />
+          <RunStat label="Pace" value={pace} unit="/km" />
+        </div>
+
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1 text-[11px] text-slate-500">
+              <TrendingUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
+              <span className="font-mono">{elev}m</span>
+              <span className="text-slate-400">elev.</span>
+            </span>
+            <span className="flex items-center gap-1 text-[11px] text-slate-500">
+              <Flame className="w-3 h-3 text-orange-400" aria-hidden="true" />
+              <span className="font-mono">{kcal}</span>
+              <span className="text-slate-400">kcal</span>
+            </span>
+          </div>
+          <span className="text-[10px] font-bold tracking-wider text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-sm">
+            STRAVA
+          </span>
+        </div>
+      </div>
+    </article>
   )
 }
 
@@ -159,6 +353,35 @@ export default function DashboardPage() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [defaultGear, setDefaultGear] = useState<GearData | null>(null)
   const [recentRoutes, setRecentRoutes] = useState<RouteData[]>([])
+  const [stravaActivities, setStravaActivities] = useState<StravaActivity[] | null>(null)
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null)
+  const [stravaLoading, setStravaLoading] = useState(true)
+
+  // ── Milestone (localStorage) ──────────────────────────────────────────
+  const [milestone, setMilestone] = useState<Milestone>(() => {
+    if (typeof window === 'undefined') return { title: 'Lifetime Total', targetKm: 500, currentKm: 432 }
+    try {
+      const saved = localStorage.getItem('endurance_milestone')
+      return saved ? JSON.parse(saved) : { title: 'Lifetime Total', targetKm: 500, currentKm: 432 }
+    } catch { return { title: 'Lifetime Total', targetKm: 500, currentKm: 432 } }
+  })
+  const [milestoneEditing, setMilestoneEditing] = useState(false)
+  const [milestoneForm, setMilestoneForm] = useState({ title: '', targetKm: '', currentKm: '' })
+
+  function openMilestoneEdit() {
+    setMilestoneForm({ title: milestone.title, targetKm: String(milestone.targetKm), currentKm: String(milestone.currentKm) })
+    setMilestoneEditing(true)
+  }
+  function saveMilestone() {
+    const updated: Milestone = {
+      title: milestoneForm.title || milestone.title,
+      targetKm: Number(milestoneForm.targetKm) || milestone.targetKm,
+      currentKm: Number(milestoneForm.currentKm) || milestone.currentKm,
+    }
+    setMilestone(updated)
+    localStorage.setItem('endurance_milestone', JSON.stringify(updated))
+    setMilestoneEditing(false)
+  }
 
   useEffect(() => {
     // Fetch weather
@@ -173,11 +396,21 @@ export default function DashboardPage() {
       })
       .catch(() => {})
 
-    // Fetch 2 most recent routes
+    // Fetch 2 most recent routes (fallback)
     fetch('/api/routes')
       .then(r => r.json())
       .then((routes: RouteData[]) => setRecentRoutes(routes.slice(0, 2)))
       .catch(() => {})
+
+    // Fetch Strava activities + weekly stats
+    fetch('/api/strava')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: { activities: StravaActivity[]; weeklyStats: WeeklyStats }) => {
+        setStravaActivities(data.activities)
+        setWeeklyStats(data.weeklyStats)
+      })
+      .catch(() => { setStravaActivities([]); setWeeklyStats(null) })
+      .finally(() => setStravaLoading(false))
   }, [])
 
   const gearPct = defaultGear
@@ -219,9 +452,9 @@ export default function DashboardPage() {
           {/* Quick stats bar */}
           <div id="weekly-stats" className="mt-6 grid grid-cols-3 gap-3" aria-label="This week's quick stats">
             {[
-              { icon: Footprints, label: 'Weekly KM', value: '48.2', unit: 'km' },
-              { icon: Zap, label: 'Avg Pace', value: '4:52', unit: '/km' },
-              { icon: BarChart2, label: 'Runs', value: '3', unit: 'of 5' },
+              { icon: Footprints, label: 'Weekly KM', value: weeklyStats ? weeklyStats.weeklyKm : '—', unit: 'km' },
+              { icon: Zap, label: 'Avg Pace', value: weeklyStats ? weeklyStats.avgPace : '—', unit: '/km' },
+              { icon: BarChart2, label: 'Runs', value: weeklyStats ? String(weeklyStats.runCount) : '—', unit: 'this wk' },
             ].map(({ icon: Icon, label, value, unit }) => (
               <div key={label} className="bg-white border border-slate-200 rounded-sm p-3 shadow-sm flex flex-col gap-1">
                 <div className="flex items-center gap-1.5">
@@ -301,66 +534,144 @@ export default function DashboardPage() {
           >
             <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Next Milestone</p>
-              <Trophy className="w-4 h-4 text-amber-400" aria-hidden="true" />
-            </div>
-            <p className="font-extrabold text-lg tracking-tight leading-tight text-white">
-              500 km<br />
-              <span className="text-slate-400 text-sm font-bold">Lifetime Total</span>
-            </p>
-            <div className="mt-4">
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Progress</span>
-                <span className="font-mono text-xs text-orange-400 font-bold">432 / 500 km</span>
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                <button
+                  id="milestone-edit-btn"
+                  onClick={openMilestoneEdit}
+                  aria-label="Edit milestone"
+                  className="p-1 rounded-sm text-slate-500 hover:text-orange-400 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden" role="progressbar" aria-valuenow={86} aria-valuemin={0} aria-valuemax={100} aria-label="500km milestone progress">
-                <div className="h-full bg-orange-600 rounded-full transition-all duration-500" style={{ width: '86%' }} />
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1.5 tracking-wide">68 km remaining</p>
             </div>
-            <button id="milestone-view-btn" className="mt-4 flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-orange-400 hover:text-orange-300 transition-colors uppercase">
-              View all milestones
-              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
+
+            {milestoneEditing ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  id="milestone-title-input"
+                  className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-bold w-full outline-none focus:border-orange-500"
+                  placeholder="Goal title"
+                  value={milestoneForm.title}
+                  onChange={e => setMilestoneForm(f => ({ ...f, title: e.target.value }))}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    id="milestone-current-input"
+                    type="number"
+                    className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
+                    placeholder="Current km"
+                    value={milestoneForm.currentKm}
+                    onChange={e => setMilestoneForm(f => ({ ...f, currentKm: e.target.value }))}
+                  />
+                  <input
+                    id="milestone-target-input"
+                    type="number"
+                    className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
+                    placeholder="Target km"
+                    value={milestoneForm.targetKm}
+                    onChange={e => setMilestoneForm(f => ({ ...f, targetKm: e.target.value }))}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button id="milestone-save-btn" onClick={saveMilestone} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest rounded-sm uppercase transition-colors">
+                    <Check className="w-3 h-3" />Save
+                  </button>
+                  <button id="milestone-cancel-btn" onClick={() => setMilestoneEditing(false)} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 text-[10px] font-bold tracking-widest rounded-sm uppercase transition-colors">
+                    <X className="w-3 h-3" />Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="font-extrabold text-lg tracking-tight leading-tight text-white">
+                  {milestone.targetKm} km<br />
+                  <span className="text-slate-400 text-sm font-bold">{milestone.title}</span>
+                </p>
+                <div className="mt-4">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Progress</span>
+                    <span className="font-mono text-xs text-orange-400 font-bold">{milestone.currentKm} / {milestone.targetKm} km</span>
+                  </div>
+                  <div
+                    className="w-full h-2 bg-slate-800 rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={Math.round((milestone.currentKm / milestone.targetKm) * 100)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Milestone progress"
+                  >
+                    <div
+                      className="h-full bg-orange-600 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.round((milestone.currentKm / milestone.targetKm) * 100))}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5 tracking-wide">
+                    {Math.max(0, milestone.targetKm - milestone.currentKm)} km remaining
+                  </p>
+                </div>
+              </>
+            )}
           </article>
         </div>
       </section>
 
-      {/* ── Recent Performance ─────────────────────────────────── */}
+      {/* ── Recent Performance (Strava) ───────────────────────── */}
       <section id="recent-performance" aria-labelledby="perf-heading">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">Activity Feed</p>
             <h2 id="perf-heading" className="font-extrabold text-xl tracking-tight text-slate-900">
-              RECENT ROUTES
+              RECENT PERFORMANCE
             </h2>
           </div>
-          <Link
-            href="/routes"
+          <a
+            href="https://www.strava.com/athlete/training"
+            target="_blank"
+            rel="noopener noreferrer"
             id="view-all-runs-btn"
             className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
           >
-            View all
+            View on Strava
             <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-          </Link>
+          </a>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-          {recentRoutes.length > 0 ? (
-            recentRoutes.map((route, i) => <PerformanceCard key={route.id} route={route} index={i} />)
-          ) : (
+          {stravaLoading ? (
+            // Skeleton loaders
             <>
-              <div className="bg-white border border-slate-200 rounded-sm shadow-sm p-6 flex flex-col gap-2 animate-pulse">
-                <div className="h-36 bg-slate-100 rounded-sm" />
-                <div className="h-4 bg-slate-100 rounded w-3/4" />
-                <div className="h-3 bg-slate-100 rounded w-1/2" />
-              </div>
-              <div className="bg-white border border-slate-200 rounded-sm shadow-sm p-6 flex flex-col gap-2 animate-pulse">
-                <div className="h-36 bg-slate-100 rounded-sm" />
-                <div className="h-4 bg-slate-100 rounded w-2/3" />
-                <div className="h-3 bg-slate-100 rounded w-1/3" />
-              </div>
+              {[1, 2].map(i => (
+                <div key={i} className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden animate-pulse">
+                  <div className="h-36 bg-slate-100" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-slate-100 rounded w-3/4" />
+                    <div className="h-3 bg-slate-100 rounded w-1/2" />
+                    <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+                      <div className="h-8 bg-slate-100 rounded" />
+                      <div className="h-8 bg-slate-100 rounded" />
+                      <div className="h-8 bg-slate-100 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </>
+          ) : stravaActivities && stravaActivities.length > 0 ? (
+            stravaActivities.map((act, i) => <StravaCard key={act.id} activity={act} index={i} />)
+          ) : (
+            // Fallback: show DB routes if Strava not connected
+            recentRoutes.length > 0 ? (
+              recentRoutes.map((route, i) => <PerformanceCard key={route.id} route={route} index={i} />)
+            ) : (
+              <div className="col-span-2 bg-white border border-dashed border-slate-200 rounded-sm p-8 text-center">
+                <p className="text-sm font-bold text-slate-500">No Strava activities found</p>
+                <p className="text-[11px] text-slate-400 mt-1">Add STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET and STRAVA_REFRESH_TOKEN to .env.local to connect.</p>
+              </div>
+            )
           )}
+
+          {/* Log workout CTA */}
           <div
             id="run-card-cta"
             className="bg-white border-2 border-dashed border-slate-200 rounded-sm flex flex-col items-center justify-center p-8 gap-3 hover:border-orange-300 hover:bg-orange-50/30 transition-all duration-200 cursor-pointer group"

@@ -6,10 +6,7 @@ import { gearSchema } from '@/lib/validations'
 
 export async function GET() {
   try {
-    // We assume the schema will have a gear model with createdAt
-    const gearList = await prisma.gear.findMany({
-      orderBy: { createdAt: 'desc' },
-    })
+    const gearList = await prisma.gear.findMany({ orderBy: { createdAt: 'desc' } })
     return NextResponse.json(gearList, { status: 200 })
   } catch (error) {
     console.error('GET /api/gear error:', error)
@@ -20,7 +17,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const result = gearSchema.safeParse(body)
+    const { imageUrl, ...rest } = body
+    const result = gearSchema.safeParse(rest)
 
     if (!result.success) {
       return NextResponse.json(
@@ -30,7 +28,7 @@ export async function POST(req: Request) {
     }
 
     const newGear = await prisma.gear.create({
-      data: result.data,
+      data: { ...result.data, ...(imageUrl ? { imageUrl } : {}) },
     })
 
     return NextResponse.json(newGear, { status: 201 })

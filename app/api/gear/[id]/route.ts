@@ -8,7 +8,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params
     const body = await req.json()
-    const result = gearSchema.safeParse(body)
+    const { imageUrl, ...rest } = body
+    const result = gearSchema.safeParse(rest)
 
     if (!result.success) {
       return NextResponse.json(
@@ -19,7 +20,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const updatedGear = await prisma.gear.update({
       where: { id },
-      data: result.data,
+      data: { ...result.data, ...(imageUrl !== undefined ? { imageUrl } : {}) },
     })
 
     return NextResponse.json(updatedGear, { status: 200 })
@@ -32,9 +33,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    await prisma.gear.delete({
-      where: { id },
-    })
+    await prisma.gear.delete({ where: { id } })
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     console.error('DELETE /api/gear/[id] error:', error)

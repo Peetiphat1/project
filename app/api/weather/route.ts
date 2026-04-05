@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const apiKey = process.env.OPENWEATHER_API_KEY
+  const apiKey = process.env.OPENWEATHER_API_KEY ?? process.env.NEXT_PUBLIC_WEATHER_API_KEY
   const city = 'Kathu,TH'
 
   if (!apiKey) {

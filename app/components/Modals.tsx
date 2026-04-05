@@ -917,13 +917,29 @@ export function AddGearModal({ onClose, onSuccess }: { onClose: () => void; onSu
     if (!result.success) {
       const errs: any = {}
       result.error.issues.forEach(iss => { errs[iss.path[0]] = iss.message })
+      // Map brandModel errors back to brand/model fields for display
+      if (errs.brandModel) { errs.brand = errs.brandModel; delete errs.brandModel }
       setErrors(errs)
       setBanner('error')
       return
     }
     setErrors({})
     try {
-      const res = await fetch('/api/gear', { method: 'POST', body: JSON.stringify(result.data) })
+      // Convert photo to Base64 if present
+      let imageUrl: string | undefined
+      if (form.photo) {
+        imageUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(form.photo!)
+        })
+      }
+      const res = await fetch('/api/gear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...result.data, ...(imageUrl ? { imageUrl } : {}) }),
+      })
       if (!res.ok) throw new Error()
       setBanner('success')
       if (onSuccess) onSuccess()
@@ -1234,8 +1250,8 @@ export function EditGearModal({
       dateAcquired: form.dateAcquired,
       startingMileage: parseInt(String(form.mileage) || '0', 10),
       targetLifespan: parseInt(String(form.targetLifespan) || '0', 10),
-      status: form.status === 'default' ? 'Default' : 
-              form.status === 'retiring' ? 'Retiring Soon' : 
+      status: form.status === 'default' ? 'Default' :
+              form.status === 'retiring' ? 'Retiring Soon' :
               form.status === 'retired' ? 'Retired' : 'Active'
     }
     const result = gearSchema.safeParse(payload)
@@ -1248,7 +1264,11 @@ export function EditGearModal({
     }
     setErrors({})
     try {
-      const res = await fetch(`/api/gear/${gear.id}`, { method: 'PUT', body: JSON.stringify(result.data) })
+      const res = await fetch(`/api/gear/${gear.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result.data),
+      })
       if (!res.ok) throw new Error()
       setBanner('success')
       if (onSuccess) onSuccess()
