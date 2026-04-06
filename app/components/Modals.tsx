@@ -1659,3 +1659,160 @@ export function ManualActivityModal({
     </ModalShell>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EDIT ACTIVITY MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ActivityRecordInput {
+  id: string
+  name: string
+  distanceKm: string
+  durationMin: string
+  durationSec: string
+  elevationM: string
+  date: string
+}
+
+export function EditActivityModal({
+  activity,
+  onClose,
+  onDelete,
+  onSuccess,
+}: {
+  activity: ActivityRecordInput
+  onClose: () => void
+  onDelete: (id: string) => void
+  onSuccess?: () => void
+}) {
+  const [form, setForm] = useState({ ...activity })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitted, setSubmitted] = useState(false)
+  const [banner, setBanner] = useState<'success' | 'error' | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  function setField(field: string, value: string) {
+    setForm((f) => ({ ...f, [field]: value }))
+    if (submitted) setErrors((e) => ({ ...e, [field]: undefined as unknown as string }))
+  }
+
+  async function handleSave() {
+    setSubmitted(true)
+    const durationSec =
+      (parseInt(form.durationMin || '0', 10) * 60) +
+      parseInt(form.durationSec || '0', 10)
+
+    const payload = {
+      name: form.name.trim(),
+      distanceKm: parseFloat(form.distanceKm),
+      durationSec,
+      elevationM: parseFloat(form.elevationM || '0'),
+      date: form.date,
+    }
+
+    const result = manualActivitySchema.safeParse(payload)
+    if (!result.success) {
+      const errs: Record<string, string> = {}
+      result.error.issues.forEach((iss) => { errs[String(iss.path[0])] = iss.message })
+      setErrors(errs)
+      setBanner('error')
+      return
+    }
+    setErrors({})
+    setSyncing(true)
+    try {
+      const res = await fetch(`/api/activities/${activity.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result.data),
+      })
+      if (!res.ok) throw new Error()
+      setBanner('success')
+      if (onSuccess) onSuccess()
+      setTimeout(onClose, 800)
+    } catch {
+      setBanner('error')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <ModalShell id="edit-activity-modal" onClose={onClose} width="max-w-lg">
+      <ModalHeader
+        label="Activity Log"
+        title="EDIT MANUAL ACTIVITY"
+        onClose={onClose}
+        rightSlot={
+          <DangerBtn onClick={() => setConfirmDelete(true)} id="ea-del-btn">
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            Delete
+          </DangerBtn>
+        }
+      />
+
+      <ModalBody>
+        {confirmDelete && (
+          <div role="alertdialog" className="bg-red-50 border border-red-300 rounded-sm p-4 space-y-3">
+            <p className="text-sm font-bold text-red-800 flex items-center gap-2">
+              <Trash2 className="w-4 h-4" />
+              Permanently delete &ldquo;{activity.name}&rdquo;?
+            </p>
+            <p className="text-xs text-red-600">
+              This will remove the activity from your log and charts. (Note: It will NOT subtract mileage from your gear automatically).
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { onDelete(activity.id); onClose() }}
+                className="px-3 py-1.5 text-xs font-bold tracking-widest bg-red-600 text-white rounded-sm hover:bg-red-700 uppercase transition-colors"
+              >
+                Yes, Delete
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-3 py-1.5 text-xs font-bold tracking-widest text-slate-600 bg-white border border-slate-300 rounded-sm hover:bg-slate-50 uppercase transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        <FieldWrapper htmlFor="ea-name" label="Activity Name" required error={errors.name}>
+          <TextInput id="ea-name" placeholder="Morning trail run" value={form.name} onChange={(v) => setField('name', v)} error={errors.name} icon={Activity} />
+        </FieldWrapper>
+
+        <FieldWrapper htmlFor="ea-distance" label="Distance (km)" required error={errors.distanceKm}>
+          <TextInput id="ea-distance" placeholder="10.5" value={form.distanceKm} onChange={(v) => setField('distanceKm', v)} error={errors.distanceKm} icon={Navigation} type="number" min="0.1" step="0.1" />
+        </FieldWrapper>
+
+        <FieldWrapper htmlFor="ea-duration-min" label="Duration (optional)" error={errors.durationSec}>
+          <div className="grid grid-cols-2 gap-3">
+            <TextInput id="ea-duration-min" placeholder="45" value={form.durationMin} onChange={(v) => setField('durationMin', v)} icon={Clock} type="number" min="0" />
+            <TextInput id="ea-duration-sec" placeholder="30" value={form.durationSec} onChange={(v) => setField('durationSec', v)} icon={Clock} type="number" min="0" max="59" />
+          </div>
+        </FieldWrapper>
+
+        <FieldWrapper htmlFor="ea-elevation" label="Elevation Gain (m, optional)" error={errors.elevationM}>
+          <TextInput id="ea-elevation" placeholder="120" value={form.elevationM} onChange={(v) => setField('elevationM', v)} icon={TrendingUp} type="number" min="0" />
+        </FieldWrapper>
+
+        <FieldWrapper htmlFor="ea-date" label="Date" required error={errors.date}>
+          <TextInput id="ea-date" placeholder="" value={form.date} onChange={(v) => setField('date', v)} icon={Calendar} type="date" />
+        </FieldWrapper>
+
+        <SubmitBanner state={banner} />
+      </ModalBody>
+
+      <ModalFooter>
+        <GhostBtn id="ea-cancel-btn" onClick={onClose}>Cancel</GhostBtn>
+        <PrimaryBtn id="ea-save-btn" onClick={handleSave} disabled={syncing}>
+          <Save className="w-3.5 h-3.5" aria-hidden="true" />
+          {syncing ? 'Saving…' : 'Save Changes'}
+        </PrimaryBtn>
+      </ModalFooter>
+    </ModalShell>
+  )
+}
+

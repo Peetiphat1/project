@@ -24,6 +24,7 @@ import {
   Check,
   X,
 } from 'lucide-react'
+import { ManualActivityModal } from '@/app/components/Modals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,34 @@ interface ActivityRecord {
   isManual: boolean
 }
 
+/**
+ * Normalised entry used only for analytics/chart aggregation.
+ * distanceKm is already in km, durationSec in seconds.
+ */
+interface NormalisedEntry {
+  dateISO: string  // YYYY-MM-DD in GMT+7
+  distanceKm: number
+  durationSec: number  // 0 if unknown
+}
+
+/** Unified card item for Recent Performance — covers both Strava and DB routes */
+interface RecentItem {
+  _key: string
+  _src: 'strava' | 'manual'
+  _date: string          // ISO for sort
+  _km: number
+  name: string
+  typeLabel: string
+  elev: number           // metres
+  time?: number          // seconds (Strava only)
+  pace?: number          // m/s   (Strava only)
+  kcal: number
+  polyline?: string
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+const TZ_OFFSET_MS = 7 * 60 * 60 * 1000 // GMT+7 (Phuket)
 
 function formatDistance(metres: number) {
   return (metres / 1000).toFixed(2)
@@ -115,6 +143,60 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
+}
+
+/**
+ * Returns the ISO date string (YYYY-MM-DD) of an ISO timestamp
+ * shifted into GMT+7 (Phuket) local time.
+ */
+function toLocalDateISO(iso: string): string {
+  return new Date(new Date(iso).getTime() + TZ_OFFSET_MS)
+    .toISOString().slice(0, 10)
+}
+
+/**
+ * Returns Mon 00:00:00 UTC of the current GMT+7 week.
+ * All week boundaries are computed in GMT+7 so they align
+ * with how the server (`/api/activities`) calculates them.
+ */
+function getWeekStartUTC(): Date {
+  const nowLocal = Date.now() + TZ_OFFSET_MS
+  const dow = new Date(nowLocal).getUTCDay()          // 0=Sun
+  const daysSinceMon = dow === 0 ? 6 : dow - 1
+  const monMidnightLocal =
+    Math.floor((nowLocal - daysSinceMon * 86_400_000) / 86_400_000) * 86_400_000
+  return new Date(monMidnightLocal - TZ_OFFSET_MS)   // back to UTC
+}
+
+/**
+ * Compute unified weekly stats from pre-normalised entries.
+ * Returns weeklyKm, avgPace (weighted by distance), runCount.
+ */
+function computeWeeklyStats(entries: NormalisedEntry[]): WeeklyStats {
+  const weekStart = getWeekStartUTC()
+  const weekEnd   = new Date(weekStart.getTime() + 7 * 86_400_000)
+
+  const thisWeek = entries.filter(e => {
+    const t = new Date(e.dateISO).getTime()  // midnight GMT+7 converted back to UTC
+    return t >= weekStart.getTime() && t < weekEnd.getTime()
+  })
+
+  const totalKm  = thisWeek.reduce((s, e) => s + e.distanceKm, 0)
+  const totalSec = thisWeek.reduce((s, e) => s + e.durationSec, 0)
+
+  let avgPace = '—'
+  if (totalKm > 0 && totalSec > 0) {
+    const secPerKm = totalSec / totalKm
+    const min = Math.floor(secPerKm / 60)
+    const sec = Math.round(secPerKm % 60)
+    avgPace = `${min}:${sec.toString().padStart(2, '0')}`
+  }
+
+  return {
+    weeklyKm: totalKm.toFixed(1),
+    avgPace,
+    runCount: thisWeek.length,
+  }
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -276,23 +358,34 @@ function WeatherIcon({ icon }: { icon: string }) {
   return <Sun className="w-7 h-7 text-amber-400" />
 }
 
-function PerformanceCard({ route, index }: { route: RouteData; index: number }) {
-  const dateStr = new Date(route.createdAt).toLocaleDateString('en-US', {
+/** Single unified card for Recent Performance — works for both Strava and manual DB entries */
+function UnifiedPerfCard({ item, index }: { item: RecentItem; index: number }) {
+  const isStrava = item._src === 'strava'
+  const dateStr = new Date(item._date).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   })
-  // Estimate a rough pace from distance (placeholder until real run data)
-  const estMinutes = Math.round(route.distance * 5.2)
-  const paceMin = Math.floor(estMinutes / route.distance)
-  const paceSec = Math.round(((estMinutes / route.distance) - paceMin) * 60)
-  const pace = `${paceMin}:${paceSec.toString().padStart(2, '0')}`
+  const timeStr = item.time ? formatMovingTime(item.time) : null
+
+  // Strava: pace field = average_speed (m/s) → convert via distance + time
+  // Manual: pace field = sec/km → format directly
+  let paceStr: string | null = null
+  if (isStrava && item.pace && item.time) {
+    // average_speed is m/s; metres = km * 1000, time already in seconds
+    paceStr = calcPace(item._km * 1000, item.time)
+  } else if (!isStrava && item.pace) {
+    // pace is sec/km
+    const min = Math.floor(item.pace / 60)
+    const sec = Math.round(item.pace % 60)
+    paceStr = `${min}:${sec.toString().padStart(2, '0')}`
+  }
 
   return (
     <article
       id={`run-card-${index + 1}`}
       className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200"
-      aria-label={`${route.name} route`}
+      aria-label={`${item.name} ${isStrava ? 'Strava run' : 'manual log'}`}
     >
-      {/* Map placeholder */}
+      {/* Map area */}
       <div className="relative h-36 bg-slate-100 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           {[...Array(8)].map((_, i) => (
@@ -302,55 +395,64 @@ function PerformanceCard({ route, index }: { route: RouteData; index: number }) 
             <div key={i} className="absolute h-full border-l border-slate-400" style={{ left: `${10 + i * 16}%` }} />
           ))}
         </div>
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 144" fill="none" aria-hidden="true">
-          <polyline
-            points="20,110 60,85 100,95 130,60 170,70 210,45 260,55 300,30"
-            stroke="#ea580c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          />
-          <circle cx="20" cy="110" r="4" fill="#22c55e" />
-          <circle cx="300" cy="30" r="4" fill="#ef4444" />
-        </svg>
+        <PolylineMap polyline={item.polyline ?? ''} />
         <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-sm shadow-sm">
           <Activity className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
-          <span className="text-[10px] font-bold tracking-widest text-slate-700 uppercase">{route.terrain}</span>
+          <span className="text-[10px] font-bold tracking-widest text-slate-700 uppercase">
+            {isStrava ? `Strava ${item.typeLabel}` : item.typeLabel}
+          </span>
         </div>
+        {isStrava && (
+          <div className="absolute top-3 right-3 bg-orange-600 text-white text-[10px] font-bold tracking-widest px-2 py-1 rounded-sm">SYNCED</div>
+        )}
+        {!isStrava && (
+          <div className="absolute top-3 right-3 bg-blue-600 text-white text-[10px] font-bold tracking-widest px-2 py-1 rounded-sm">MANUAL</div>
+        )}
       </div>
 
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-bold text-slate-900 text-sm leading-tight">{route.name}</h3>
+            <h3 className="font-bold text-slate-900 text-sm leading-tight">{item.name}</h3>
             <p className="text-[11px] text-slate-400 tracking-wide mt-0.5 flex items-center gap-1">
               <Clock className="w-3 h-3" aria-hidden="true" />
               {dateStr}
             </p>
           </div>
-          <button aria-label={`View details for ${route.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors">
+          <button aria-label={`View details for ${item.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors">
             <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
-          <RunStat label="Distance" value={route.distance.toFixed(1)} unit="km" />
-          <RunStat label="Elevation" value={route.elevation.toString()} unit="m" />
-          <RunStat label="Est. Pace" value={pace} unit="/km" />
+          <RunStat label="Distance" value={item._km.toFixed(2)} unit="km" />
+          {timeStr
+            ? <RunStat label="Time" value={timeStr} unit="" />
+            : <RunStat label="Elevation" value={String(item.elev)} unit="m" />
+          }
+          {paceStr
+            ? <RunStat label="Pace" value={paceStr} unit="/km" />
+            : <RunStat label="Est. Calories" value={String(item.kcal)} unit="kcal" />
+          }
         </div>
 
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1 text-[11px] text-slate-500">
               <TrendingUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
-              <span className="font-mono">{route.elevation}m</span>
+              <span className="font-mono">{item.elev}m</span>
               <span className="text-slate-400">elev.</span>
             </span>
             <span className="flex items-center gap-1 text-[11px] text-slate-500">
               <Flame className="w-3 h-3 text-orange-400" aria-hidden="true" />
-              <span className="font-mono">{Math.round(route.distance * 62)}</span>
+              <span className="font-mono">{item.kcal}</span>
               <span className="text-slate-400">kcal</span>
             </span>
           </div>
-          <span className="text-[10px] font-bold tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-sm">
-            SAVED ROUTE
+          <span className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm ${
+            isStrava ? 'text-green-700 bg-green-50 border border-green-200' : 'text-blue-700 bg-blue-50 border border-blue-200'
+          }`}>
+            {isStrava ? 'STRAVA' : 'MANUAL'}
           </span>
         </div>
       </div>
@@ -363,12 +465,13 @@ function PerformanceCard({ route, index }: { route: RouteData; index: number }) 
 export default function DashboardPage() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [defaultGear, setDefaultGear] = useState<GearData | null>(null)
-  const [recentRoutes, setRecentRoutes] = useState<RouteData[]>([])
-  const [stravaActivities, setStravaActivities] = useState<StravaActivity[] | null>(null)
+  const [recentUnified, setRecentUnified] = useState<RecentItem[]>([])
+  const [recentLoading, setRecentLoading] = useState(true)
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null)
-  const [stravaLoading, setStravaLoading] = useState(true)
-  const [analyticsActivities, setAnalyticsActivities] = useState<ActivityRecord[]>([])
+  /** All entries normalised for the 7-day intensity chart — includes Strava + manual */
+  const [chartEntries, setChartEntries] = useState<NormalisedEntry[]>([])
   const [syncing, setSyncing] = useState(false)
+  const [showManualModal, setShowManualModal] = useState(false)
 
   // ── Milestone (DB) ──────────────────────────────────────────────
   const [milestone, setMilestone] = useState<Milestone>({
@@ -399,6 +502,108 @@ export default function DashboardPage() {
     setMilestoneEditing(false)
   }
 
+  /**
+   * Fetch Strava + manual DB activities in parallel.
+   *
+   * After loading:
+   *   • Builds a unified Recent Performance list (top 4, newest first)
+   *   • Computes unified weekly stats (Mon–Sun, GMT+7) across both sources
+   *   • Builds a NormalisedEntry[] for the 7-day intensity chart
+   */
+  async function fetchRecentPerformance() {
+    setRecentLoading(true)
+    try {
+      const [stravaRes, actRes] = await Promise.all([
+        fetch('/api/strava').catch(() => null),
+        fetch('/api/activities').catch(() => null),
+      ])
+
+      const items: RecentItem[] = []
+      const normalised: NormalisedEntry[] = []
+
+      // ── 1. Strava activities ─────────────────────────────────────
+      let stravaActivities: StravaActivity[] = []
+      if (stravaRes?.ok) {
+        const data: { activities: StravaActivity[]; weeklyStats: WeeklyStats } =
+          await stravaRes.json()
+        stravaActivities = data.activities
+
+        for (const a of stravaActivities) {
+          const km = a.distance / 1000
+
+          // Normalised entry for chart + weekly stats
+          normalised.push({
+            dateISO: toLocalDateISO(a.start_date_local),
+            distanceKm: km,
+            durationSec: a.moving_time,
+          })
+
+          // Recent Performance card
+          items.push({
+            _key: `strava-${a.id}`,
+            _src: 'strava',
+            _date: a.start_date_local,
+            _km: km,
+            name: a.name,
+            typeLabel: a.type,
+            elev: Math.round(a.total_elevation_gain),
+            time: a.moving_time,
+            // Store as sec/km so UnifiedPerfCard's calcPace(pace*km*1000, time) works:
+            // actual: calcPace needs metres + seconds → pass metres directly via time
+            pace: a.average_speed,  // m/s — kept for calcPace(m/s * km * 1000, time)
+            kcal: Math.round(km * 62),
+            polyline: a.map?.summary_polyline,
+          })
+        }
+      }
+
+      // ── 2. Manual DB activities ──────────────────────────────────
+      let manualActivities: ActivityRecord[] = []
+      if (actRes?.ok) {
+        const data: { activities: ActivityRecord[] } = await actRes.json()
+        manualActivities = data.activities.filter(a => a.isManual)
+
+        for (const m of manualActivities) {
+          // Normalised entry for chart + weekly stats
+          normalised.push({
+            dateISO: toLocalDateISO(m.date),
+            distanceKm: m.distanceKm,
+            durationSec: m.durationSec,
+          })
+
+          // Recent Performance card
+          items.push({
+            _key: `manual-${m.id}`,
+            _src: 'manual',
+            _date: m.date,
+            _km: m.distanceKm,
+            name: m.name,
+            typeLabel: 'Manual Run',
+            elev: Math.round(m.elevationM || 0),
+            time: m.durationSec > 0 ? m.durationSec : undefined,
+            // pace stored as secPerKm so UnifiedPerfCard renders correctly
+            pace: m.durationSec > 0 && m.distanceKm > 0
+              ? m.durationSec / m.distanceKm   // sec/km
+              : undefined,
+            kcal: Math.round(m.distanceKm * 62),
+          })
+        }
+      }
+
+      // ── 3. Compute unified weekly stats ─────────────────────────
+      setWeeklyStats(computeWeeklyStats(normalised))
+
+      // ── 4. Feed the 7-day chart ──────────────────────────────────
+      setChartEntries(normalised)
+
+      // ── 5. Sort + limit Recent Performance ──────────────────────
+      items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime())
+      setRecentUnified(items.slice(0, 4))
+    } catch { /* noop */ } finally {
+      setRecentLoading(false)
+    }
+  }
+
   useEffect(() => {
     // Fetch weather
     fetch('/api/weather').then(r => r.json()).then(setWeather).catch(() => {})
@@ -412,38 +617,14 @@ export default function DashboardPage() {
       })
       .catch(() => {})
 
-    // Fetch 2 most recent routes (fallback)
-    fetch('/api/routes')
-      .then(r => r.json())
-      .then((routes: RouteData[]) => setRecentRoutes(routes.slice(0, 2)))
-      .catch(() => {})
-
-    // Fetch Strava activities (display only — 2 cards)
-    fetch('/api/strava')
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: { activities: StravaActivity[]; weeklyStats: WeeklyStats }) => {
-        setStravaActivities(data.activities)
-        // Only use Strava weekly stats if DB hasn't loaded yet
-        setWeeklyStats(prev => prev ?? data.weeklyStats)
-      })
-      .catch(() => { setStravaActivities([]) })
-      .finally(() => setStravaLoading(false))
-
-    // Fetch DB activities — analytics chart + COMBINED weekly stats
-    fetch('/api/activities')
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: { activities: ActivityRecord[]; weeklyStats: WeeklyStats }) => {
-        setAnalyticsActivities(data.activities)
-        // DB-sourced combined stats override Strava-only stats
-        if (data.weeklyStats) setWeeklyStats(data.weeklyStats)
-      })
-      .catch(() => {})
-
     // Fetch milestone from DB
     fetch('/api/milestone')
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: Milestone) => setMilestone(data))
       .catch(() => {})
+
+    // Unified recent performance fetch
+    fetchRecentPerformance()
   }, [])
 
   // ── Handle Strava Sync button ───────────────────────────────────────
@@ -452,18 +633,14 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/strava/sync', { method: 'POST' })
       if (res.ok) {
-        // Refresh gear, milestone, and activities (which includes combined weekly stats)
-        const [gearRes, msRes, actRes] = await Promise.all([
+        const [gearRes, msRes] = await Promise.all([
           fetch('/api/gear').then(r => r.json()),
           fetch('/api/milestone').then(r => r.json()),
-          fetch('/api/activities').then(r => r.json()),
         ])
         const def = (gearRes as GearData[]).find(g => g.isDefault) ?? (gearRes as GearData[])[0] ?? null
         setDefaultGear(def)
         setMilestone(msRes as Milestone)
-        const actData = actRes as { activities: ActivityRecord[]; weeklyStats: WeeklyStats }
-        setAnalyticsActivities(actData.activities)
-        if (actData.weeklyStats) setWeeklyStats(actData.weeklyStats)
+        await fetchRecentPerformance()
       }
     } catch { /* noop */ } finally { setSyncing(false) }
   }
@@ -662,7 +839,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ── Recent Performance (Strava) ───────────────────────── */}
+      {/* ── Recent Performance (Unified) ─────────────────────── */}
       <section id="recent-performance" aria-labelledby="perf-heading">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -671,21 +848,30 @@ export default function DashboardPage() {
               RECENT PERFORMANCE
             </h2>
           </div>
-          <a
-            href="https://www.strava.com/athlete/training"
-            target="_blank"
-            rel="noopener noreferrer"
-            id="view-all-runs-btn"
-            className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
-          >
-            View on Strava
-            <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-          </a>
+          <div className="flex items-center gap-3">
+            <button
+              id="dashboard-log-manual-btn"
+              onClick={() => setShowManualModal(true)}
+              className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
+            >
+              <Activity className="w-3.5 h-3.5" aria-hidden="true" />
+              Log Manual
+            </button>
+            <a
+              href="https://www.strava.com/athlete/training"
+              target="_blank"
+              rel="noopener noreferrer"
+              id="view-all-runs-btn"
+              className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
+            >
+              View on Strava
+              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </a>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-          {stravaLoading ? (
-            // Skeleton loaders
+          {recentLoading ? (
             <>
               {[1, 2].map(i => (
                 <div key={i} className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden animate-pulse">
@@ -702,23 +888,19 @@ export default function DashboardPage() {
                 </div>
               ))}
             </>
-          ) : stravaActivities && stravaActivities.length > 0 ? (
-            stravaActivities.map((act, i) => <StravaCard key={act.id} activity={act} index={i} />)
+          ) : recentUnified.length > 0 ? (
+            recentUnified.map((item, i) => <UnifiedPerfCard key={item._key} item={item} index={i} />)
           ) : (
-            // Fallback: show DB routes if Strava not connected
-            recentRoutes.length > 0 ? (
-              recentRoutes.map((route, i) => <PerformanceCard key={route.id} route={route} index={i} />)
-            ) : (
-              <div className="col-span-2 bg-white border border-dashed border-slate-200 rounded-sm p-8 text-center">
-                <p className="text-sm font-bold text-slate-500">No Strava activities found</p>
-                <p className="text-[11px] text-slate-400 mt-1">Add STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET and STRAVA_REFRESH_TOKEN to .env.local to connect.</p>
-              </div>
-            )
+            <div className="col-span-2 bg-white border border-dashed border-slate-200 rounded-sm p-8 text-center">
+              <p className="text-sm font-bold text-slate-500">No activities yet</p>
+              <p className="text-[11px] text-slate-400 mt-1">Connect Strava or log a manual activity to get started.</p>
+            </div>
           )}
 
           {/* Log workout CTA */}
           <div
             id="run-card-cta"
+            onClick={() => setShowManualModal(true)}
             className="bg-white border-2 border-dashed border-slate-200 rounded-sm flex flex-col items-center justify-center p-8 gap-3 hover:border-orange-300 hover:bg-orange-50/30 transition-all duration-200 cursor-pointer group"
             role="button"
             aria-label="Log a new workout"
@@ -734,6 +916,16 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {showManualModal && (
+        <ManualActivityModal
+          onClose={() => setShowManualModal(false)}
+          onSuccess={() => {
+            setShowManualModal(false)
+            fetchRecentPerformance()
+          }}
+        />
+      )}
 
       {/* ── Gear Health ───────────────────────────────────────────── */}
       <section id="gear-health" aria-labelledby="gear-heading" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -839,13 +1031,10 @@ export default function DashboardPage() {
 
                   const key = dayDate.toISOString().slice(0, 10) // YYYY-MM-DD
 
-                  const total = analyticsActivities
-                    .filter((a) => {
-                      const localDate = new Date(new Date(a.date).getTime() + TZ_OFFSET_MS)
-                        .toISOString().slice(0, 10)
-                      return localDate === key
-                    })
-                    .reduce((s, a) => s + a.distanceKm, 0)
+                  // chartEntries.dateISO is already the GMT+7 local date — compare directly
+                  const total = chartEntries
+                    .filter((e: NormalisedEntry) => e.dateISO === key)
+                    .reduce((s: number, e: NormalisedEntry) => s + e.distanceKm, 0)
 
                   return { label, km: total, isToday: offsetDays === 0, key }
                 })
@@ -874,7 +1063,7 @@ export default function DashboardPage() {
                 })
               })()}
             </div>
-            {analyticsActivities.length === 0 && (
+            {chartEntries.length === 0 && (
               <p className="text-[10px] text-slate-400 text-center mt-2">Sync Strava or log a manual activity to populate this chart.</p>
             )}
           </div>
@@ -887,8 +1076,8 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs font-bold text-slate-800">Total Distance Logged</p>
                 <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                  {analyticsActivities.length > 0
-                    ? `${analyticsActivities.reduce((s, a) => s + a.distanceKm, 0).toFixed(1)} km across ${analyticsActivities.length} activities (Strava + manual).`
+                  {chartEntries.length > 0
+                    ? `${chartEntries.reduce((s: number, e: NormalisedEntry) => s + e.distanceKm, 0).toFixed(1)} km across ${chartEntries.length} activities (Strava + manual).`
                     : 'No activities logged yet. Sync Strava or add a manual run.'}
                 </p>
               </div>

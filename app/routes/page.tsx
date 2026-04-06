@@ -16,8 +16,10 @@ import {
   Heart,
   Flame,
   RefreshCw,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
-import { ManualActivityModal } from '@/app/components/Modals'
+import { ManualActivityModal, EditActivityModal, type ActivityRecordInput } from '@/app/components/Modals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -44,15 +46,15 @@ interface StravaActivity {
   kudos_count: number
 }
 
-/** Shape returned by /api/routes (Prisma Route model) */
-interface DbRoute {
+/** Shape returned by /api/activities for manual entries */
+interface ActivityRecord {
   id: string
   name: string
-  distance: number   // km
-  elevation: number  // metres
-  terrain: string
-  notes?: string | null
-  createdAt: string  // ISO
+  distanceKm: number
+  durationSec: number
+  elevationM: number
+  date: string
+  isManual: boolean
 }
 
 /**
@@ -71,7 +73,7 @@ interface UnifiedActivity {
   typeLabel: string
   achievementCount: number
   strava?: StravaActivity
-  route?: DbRoute
+  route?: ActivityRecord
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -248,19 +250,34 @@ function ActivityCard({
   activity,
   isSelected,
   onClick,
+  onEdit,
+  onDelete,
 }: {
   activity: UnifiedActivity
   isSelected: boolean
   onClick: () => void
+  onEdit?: () => void
+  onDelete?: () => void
 }) {
   const isStrava = activity._src === 'strava'
   const dateStr = fmtDateShort(activity._date)
   const km = activity._km.toFixed(2)
   const elev = isStrava
     ? Math.round(activity.strava!.total_elevation_gain)
-    : Math.round(activity.route?.elevation ?? 0)
-  const pace = isStrava ? fmtPace(activity.strava!.average_speed) : '—'
-  const time = isStrava ? fmtTime(activity.strava!.moving_time) : null
+    : Math.round(activity.route?.elevationM ?? 0)
+
+  // We can calculate pace for manual runs too if duration is logged
+  let pace = isStrava ? fmtPace(activity.strava!.average_speed) : '—'
+  if (!isStrava && activity.route && activity.route.durationSec > 0 && activity.route.distanceKm > 0) {
+    const secPerKm = activity.route.durationSec / activity.route.distanceKm
+    const min = Math.floor(secPerKm / 60)
+    const sec = Math.round(secPerKm % 60)
+    pace = `${min}:${sec.toString().padStart(2, '0')}`
+  }
+
+  const time = isStrava 
+    ? fmtTime(activity.strava!.moving_time) 
+    : (activity.route?.durationSec ? fmtTime(activity.route.durationSec) : null)
   const polyline = activity.strava?.map?.summary_polyline ?? ''
 
   return (
@@ -335,7 +352,27 @@ function ActivityCard({
           <Activity className="w-3 h-3" aria-hidden="true" />
           {isStrava ? 'STRAVA SYNCED' : 'MANUAL LOG'}
         </span>
-        <ChevronRight className="w-3.5 h-3.5 text-orange-500" aria-hidden="true" />
+
+        {/* Edit / Delete for manual entries */}
+        {!isStrava && (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={onEdit}
+              aria-label={`Edit ${activity.name}`}
+              className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onDelete}
+              aria-label={`Delete ${activity.name}`}
+              className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {isStrava && <ChevronRight className="w-3.5 h-3.5 text-orange-500" aria-hidden="true" />}
       </div>
     </article>
   )
@@ -367,9 +404,11 @@ export default function RoutesPage() {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<UnifiedActivity | null>(null)
   const [isManualOpen, setIsManualOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<ActivityRecordInput | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   /**
-   * Fetch Strava history AND DB routes in parallel.
+   * Fetch Strava history AND DB manual activities in parallel.
    * Normalise both into UnifiedActivity[], sort newest first.
    * Strava errors are soft-failures (DB routes still show).
    */
@@ -377,14 +416,14 @@ export default function RoutesPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const [stravaRes, routesRes] = await Promise.all([
-        fetch('/api/strava/history?per_page=50'),
-        fetch('/api/routes'),
+      const [stravaRes, actRes] = await Promise.all([
+        fetch('/api/strava/history?per_page=50').catch(() => null),
+        fetch('/api/activities').catch(() => null),
       ])
 
       const unified: UnifiedActivity[] = []
 
-      if (stravaRes.ok) {
+      if (stravaRes?.ok) {
         const stravaData: StravaActivity[] = await stravaRes.json()
         for (const a of stravaData) {
           unified.push({
@@ -398,20 +437,19 @@ export default function RoutesPage() {
             strava: a,
           })
         }
-      } else {
-        console.warn('[routes] Strava unavailable:', stravaRes.status)
       }
 
-      if (routesRes.ok) {
-        const dbRoutes: DbRoute[] = await routesRes.json()
-        for (const r of dbRoutes) {
+      if (actRes?.ok) {
+        const data: { activities: ActivityRecord[] } = await actRes.json()
+        const manualLogs = data.activities.filter(a => a.isManual)
+        for (const r of manualLogs) {
           unified.push({
             _key: `route-${r.id}`,
             _src: 'manual',
-            _date: r.createdAt,
-            _km: r.distance,
+            _date: r.date,
+            _km: r.distanceKm,
             name: r.name,
-            typeLabel: r.terrain ?? 'Route',
+            typeLabel: 'Manual',
             achievementCount: 0,
             route: r,
           })
@@ -419,7 +457,7 @@ export default function RoutesPage() {
       }
 
       // Only throw a hard error if BOTH sources failed and we have nothing
-      if (unified.length === 0 && !stravaRes.ok && !routesRes.ok) {
+      if (unified.length === 0 && !stravaRes?.ok && !actRes?.ok) {
         throw new Error('Failed to load activities from any source')
       }
 
@@ -436,6 +474,28 @@ export default function RoutesPage() {
   }
 
   useEffect(() => { fetchHistory() }, [])
+
+  /** Optimistic delete: remove from local state immediately, then call API */
+  async function handleDelete(routeId: string) {
+    // Remove from list instantly
+    setActivities(prev => {
+      const next = prev.filter(a => a._key !== `route-${routeId}`)
+      // If the deleted item was selected, pick the next one
+      if (selected?._key === `route-${routeId}`) {
+        setSelected(next[0] ?? null)
+      }
+      return next
+    })
+    setDeletingId(routeId)
+    try {
+      await fetch(`/api/activities/${routeId}`, { method: 'DELETE' })
+    } catch {
+      // On failure re-fetch to restore accurate state
+      fetchHistory()
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -528,6 +588,16 @@ export default function RoutesPage() {
                 activity={act}
                 isSelected={selected?._key === act._key}
                 onClick={() => setSelected(act)}
+                onEdit={act._src === 'manual' && act.route ? () => setEditTarget({
+                  id: act.route!.id,
+                  name: act.route!.name,
+                  distanceKm: String(act.route!.distanceKm),
+                  elevationM: String(act.route!.elevationM),
+                  durationMin: String(Math.floor((act.route!.durationSec || 0) / 60)),
+                  durationSec: String((act.route!.durationSec || 0) % 60),
+                  date: new Date(act.route!.date).toISOString().slice(0, 10),
+                }) : undefined}
+                onDelete={act._src === 'manual' && act.route ? () => handleDelete(act.route!.id) : undefined}
               />
             ))}
           </div>
@@ -663,16 +733,16 @@ export default function RoutesPage() {
                   <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">{selected.route.name}</h2>
                   <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
                     <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-                    {fmtDate(selected.route.createdAt)}
+                    {fmtDate(selected.route.date)}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 {[
-                  { label: selected.route.terrain, icon: Layers },
-                  { label: `${selected.route.distance.toFixed(2)} km`, icon: Navigation },
-                  { label: `${Math.round(selected.route.elevation)} m elev`, icon: TrendingUp },
+                  { label: 'Manual Run', icon: Layers },
+                  { label: `${selected.route.distanceKm.toFixed(2)} km`, icon: Navigation },
+                  { label: `${Math.round(selected.route.elevationM)} m elev`, icon: TrendingUp },
                 ].map(({ label, icon: Icon }) => (
                   <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
                     <Icon className="w-3 h-3 text-slate-400" />
@@ -688,19 +758,12 @@ export default function RoutesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <StatBox id="stat-elevation" icon={TrendingUp} label="Elevation"
-                  value={`${Math.round(selected.route.elevation)} m`} sub="Total climb" />
+                  value={`${Math.round(selected.route.elevationM)} m`} sub="Total climb" />
                 <StatBox id="stat-distance" icon={Navigation} label="Distance"
-                  value={`${selected.route.distance.toFixed(2)} km`} sub="km" />
+                  value={`${selected.route.distanceKm.toFixed(2)} km`} sub="km" />
                 <StatBox id="stat-kcal" icon={Flame} label="Est. Calories"
-                  value={`~${Math.round(selected.route.distance * 62)} kcal`} sub="Estimated" />
+                  value={`~${Math.round(selected.route.distanceKm * 62)} kcal`} sub="Estimated" />
               </div>
-
-              {selected.route.notes && (
-                <div className="bg-slate-50 rounded-sm p-3 border border-slate-200">
-                  <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">Notes</p>
-                  <p className="text-sm text-slate-600">{selected.route.notes}</p>
-                </div>
-              )}
 
               <div className="flex pt-2 border-t border-slate-100">
                 <button
@@ -727,6 +790,15 @@ export default function RoutesPage() {
         <ManualActivityModal
           onClose={() => setIsManualOpen(false)}
           onSuccess={fetchHistory}
+        />
+      )}
+
+      {editTarget && (
+        <EditActivityModal
+          activity={editTarget}
+          onClose={() => setEditTarget(null)}
+          onDelete={(id) => { handleDelete(id); setEditTarget(null) }}
+          onSuccess={() => { setEditTarget(null); fetchHistory() }}
         />
       )}
     </div>
