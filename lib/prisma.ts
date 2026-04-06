@@ -1,11 +1,14 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
-import { Pool } from 'pg'
+import { PrismaLibSql } from '@prisma/adapter-libsql'
 
-const connectionString = process.env.DIRECT_DATABASE_URL
-
-const pool = new Pool({ connectionString })
-const adapter = new PrismaPg(pool)
+/**
+ * Prisma v7 requires a driver adapter for all databases.
+ * For local SQLite we use @prisma/adapter-libsql.
+ * DATABASE_URL must be set to: file:./dev.db
+ */
+const adapter = new PrismaLibSql({
+  url: process.env.DATABASE_URL!,
+})
 
 const prismaClientSingleton = () => {
   return new PrismaClient({ adapter })

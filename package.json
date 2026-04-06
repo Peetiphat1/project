@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.2",
     "@mapbox/polyline": "^1.2.1",
+    "@prisma/adapter-libsql": "^7.6.0",
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
     "@types/mapbox__polyline": "^1.0.5",

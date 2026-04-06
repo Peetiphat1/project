@@ -1,40 +1,27 @@
----
-description: Automated initial setup instructions for AI coding agents
----
+# AI Agent System Prompt: The Endurance Log
 
-# Agent Setup Instructions
+When updating, debugging, or extending this codebase, you MUST adhere to the following rules:
 
-Hello! If you are an AI Coding Agent (like Antigravity) reading this file, please follow these instructions to automatically set up this project for the user.
+## Architecture
+- **Framework:** Next.js App Router exclusively.
+- **Components:** Prefer Server Components wherever possible. Use Client Components (`"use client"`) only when interactivity, state, or client-side hooks are absolutely necessary.
 
-## Context
-This is "The Endurance Log," a Next.js full-stack application using Prisma (PostgreSQL), Tailwind CSS, and external APIs (Strava, OpenWeatherMap).
+## Database
+- **Provider & ORM:** Prisma with **SQLite**.
+- **Constraint:** NEVER change the database provider to PostgreSQL, MySQL, or any other database engine. Stick strictly to local SQLite (`DATABASE_URL="file:./dev.db"`).
 
-## 1. Install Dependencies
-Run the install command using `npm` or `pnpm` depending on what lockfile exists.
-Wait for it to finish.
+## Authentication & API Configurations
+- **Strava Data:** All Strava credentials (Client ID, Secret, Refresh Token) are fetched dynamically from the `SystemSettings` Prisma model. 
+- **Constraint:** Do NOT attempt to read Strava keys from `process.env`. They are purely database-driven. Do not modify the application to store or expect them in `.env` files.
 
-## 2. Environment Variables
-1. Check if `.env.local` exists. If not, create it.
-2. Ensure the following keys are populated. Ask the user for any missing values, specifically API keys:
-   - `DATABASE_URL` (Local or remote PostgreSQL connection string)
-   - `STRAVA_CLIENT_ID`
-   - `STRAVA_CLIENT_SECRET`
-   - `STRAVA_REFRESH_TOKEN` (If they don't have this, explain they need to run the app and visit `/api/strava/login` to get it)
-   - `NEXT_PUBLIC_WEATHER_API_KEY`
+## Design System
+- **Theme:** Brutalist UI, high contrast, stark layouts.
+- **Styling Rules:** 
+  - Must constantly support and include `dark:` Tailwind variants alongside standard styling (e.g., `dark:bg-slate-950`, `dark:text-slate-100`).
+  - **Colors:** Primary light mode colors are off-white, navy slate, and burnt-orange, with their appropriate dark mode counterparts. Keep designs bold and sharp without unnecessary fluff.
 
-## 3. Database Sync
-1. Run `npx prisma db push` to push the database schema.
-2. Run `npx prisma generate` to generate the TypeScript Prisma client.
-
-## 4. Check for Errors
-Run `npx tsc --noEmit` and `npm run lint` (or pnpm equivalent) to ensure there are no glaring issues.
-
-## 5. Start Development Server
-1. Run `npm run dev` or `pnpm dev` in a background terminal process.
-2. Notify the user that the app is now running at `http://localhost:3000`.
-
-## 6. Seed Data (Optional)
-If the user requests mock data or if there's a script available, run `npm run seed` or tell the user how to populate their first activities and routes.
-
-## Completion
-Once these steps are verified and running, report back to the user that the project is successfully set up and ask them what feature they would like to work on next.
+## Execution Requirements
+- If you need to test the app or initialize the environment, execute the following standard terminal commands:
+  - `npm install` (to install dependencies)
+  - `npx prisma db push` (to sync the database schema)
+  - `npm run dev` (to start the local development server)

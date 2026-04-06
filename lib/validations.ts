@@ -30,3 +30,12 @@ export const manualActivitySchema = z.object({
 })
 
 export type ManualActivityInput = z.infer<typeof manualActivitySchema>
+
+export const systemSettingsSchema = z.object({
+  stravaClientId:     z.string().trim().min(1, 'Client ID is required — paste it from your Strava API app'),
+  stravaClientSecret: z.string().trim().min(1, 'Client Secret is required — paste it from your Strava API app'),
+  stravaRefreshToken: z.string().trim().optional().or(z.literal('')),
+  autoSync: z.boolean().default(true),
+})
+
+export type SystemSettingsInput = z.infer<typeof systemSettingsSchema>

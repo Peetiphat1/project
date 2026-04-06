@@ -59,15 +59,22 @@ export async function POST() {
     if (toCreate.length > 0) {
       const created = await prisma.activity.createMany({
         data: toCreate,
-        skipDuplicates: true,
       })
       syncedCount = created.count
     }
 
-    // Increment default gear's mileage by the sum of genuinely new activities
+    // Increment default gear's mileage — scoped to the current athlete
     if (syncedCount > 0) {
       const newKm = toCreate.reduce((s, a) => s + a.distanceKm, 0)
-      const defaultGear = await prisma.gear.findFirst({ where: { isDefault: true } })
+      const settings = await prisma.userSettings.findFirst()
+      const currentAthleteId = settings?.currentAthleteId ?? null
+
+      const defaultGear = await prisma.gear.findFirst({
+        where: {
+          isDefault: true,
+          athleteId: currentAthleteId,
+        },
+      })
 
       if (defaultGear && newKm > 0) {
         const updatedMileage = defaultGear.startingMileage + newKm

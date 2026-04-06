@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { saveStravaCredentials } from '@/lib/strava'
+import prisma from '@/lib/prisma'
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -16,8 +17,9 @@ export async function GET(req: Request) {
 
   // Client ID + Secret — try DB first, then env
   // (The user must have set them in .env or previously via the UI)
-  const clientId = process.env.STRAVA_CLIENT_ID
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET
+  const settings = await prisma.userSettings.findFirst()
+  const clientId = settings?.stravaClientId?.trim() || process.env.STRAVA_CLIENT_ID
+  const clientSecret = settings?.stravaClientSecret?.trim() || process.env.STRAVA_CLIENT_SECRET
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(

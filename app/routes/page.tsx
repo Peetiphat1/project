@@ -215,12 +215,12 @@ function LargePolyline({ activity }: { activity: StravaActivity }) {
         </div>
       )}
 
-      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-sm px-2 py-1 border border-slate-200">
-        <span className="text-[10px] font-mono font-bold text-slate-600">
+      <div className="absolute bottom-3 right-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-sm px-2 py-1 border border-slate-200 dark:border-slate-700">
+        <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">
           {fmtDistance(activity.distance)} km · {Math.round(activity.total_elevation_gain)} m elev.
         </span>
       </div>
-      <div className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-sm border border-slate-200 flex items-center justify-center">
+      <div className="absolute top-3 right-3 w-8 h-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
         <Navigation className="w-4 h-4 text-slate-600" aria-label="North" />
       </div>
       <div className="absolute top-3 left-3 bg-orange-600 text-white text-[10px] font-bold tracking-widest px-2 py-1 rounded-sm">
@@ -554,9 +554,7 @@ export default function RoutesPage() {
             <p className="text-xs font-bold text-red-700 dark:text-red-400">Sync error</p>
             <p className="text-[11px] text-red-500 dark:text-red-400 mt-0.5">{error}</p>
             <p className="text-[11px] text-red-400 mt-1">
-              Add <code className="bg-red-100 px-1 rounded">STRAVA_REFRESH_TOKEN</code> to your{' '}
-              <code className="bg-red-100 px-1 rounded">.env</code> and visit{' '}
-              <a href="/api/strava/login" className="underline font-bold">/api/strava/login</a> to authorize.
+              Visit <a href="/api/strava/login" className="underline font-bold">/api/strava/login</a> to authorize and re-connect your account.
             </p>
           </div>
         </div>
@@ -608,15 +606,15 @@ export default function RoutesPage() {
         {/* Right column — detail panel */}
         <section
           id="route-detail-panel"
-          className="bg-white border border-slate-200 rounded-sm shadow-sm p-5 flex flex-col gap-5"
+          className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm p-5 flex flex-col gap-5"
         >
           {isLoading ? (
             <div className="animate-pulse space-y-4">
-              <div className="h-6 bg-slate-100 rounded w-1/3" />
-              <div className="h-8 bg-slate-100 rounded w-1/2" />
-              <div className="h-80 bg-slate-100 rounded-sm" />
+              <div className="h-6 bg-slate-100 dark:bg-slate-800 rounded w-1/3" />
+              <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded w-1/2" />
+              <div className="h-80 bg-slate-100 dark:bg-slate-800 rounded-sm" />
               <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-slate-100 rounded" />)}
+                {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-slate-100 dark:bg-slate-800 rounded" />)}
               </div>
             </div>
           ) : selected && selected._src === 'strava' && selected.strava ? (
@@ -625,7 +623,7 @@ export default function RoutesPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">Current Focus</p>
-                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">{selected.strava.name}</h2>
+                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 dark:text-slate-100 mt-0.5">{selected.strava.name}</h2>
                   <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
                     <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                     {fmtDate(selected.strava.start_date_local)} · {fmtTime(selected.strava.moving_time)}
@@ -648,7 +646,7 @@ export default function RoutesPage() {
                   { label: `${fmtPace(selected.strava.average_speed)} /km`, icon: Zap },
                   { label: `${Math.round(selected.strava.total_elevation_gain)} m elev`, icon: TrendingUp },
                 ].map(({ label, icon: Icon }) => (
-                  <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
+                  <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-sm">
                     <Icon className="w-3 h-3 text-slate-400" />
                     {label.toUpperCase()}
                   </span>
@@ -683,13 +681,13 @@ export default function RoutesPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <BarChart2 className="w-4 h-4 text-slate-400" />
-                    <h3 className="text-xs font-bold tracking-widest text-slate-600 uppercase">Activity Summary</h3>
+                    <h3 className="text-xs font-bold tracking-widest text-slate-600 dark:text-slate-300 uppercase">Activity Summary</h3>
                   </div>
                   <span className="font-mono text-xs font-bold text-orange-600">
                     +{Math.round(selected.strava.total_elevation_gain)} m
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 rounded-sm p-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-900 rounded-sm p-3 border border-transparent dark:border-slate-800">
                   {[
                     { icon: Navigation, label: 'Distance', value: `${fmtDistance(selected.strava.distance)} km` },
                     { icon: Clock, label: 'Moving Time', value: fmtTime(selected.strava.moving_time) },
@@ -701,25 +699,25 @@ export default function RoutesPage() {
                         <Icon className="w-2.5 h-2.5" aria-hidden="true" />
                         {label}
                       </span>
-                      <span className="font-mono text-sm font-bold text-slate-800 tabular-nums">{value}</span>
+                      <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">{value}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <a
                   href={`https://www.strava.com/activities/${selected.strava.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 rounded-sm hover:border-orange-500 hover:text-orange-600 uppercase transition-all flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 text-xs font-bold tracking-widest text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-sm hover:border-orange-500 dark:hover:border-orange-500 hover:text-orange-600 dark:hover:text-orange-600 uppercase transition-all flex items-center justify-center gap-1.5"
                 >
                   <Activity className="w-3 h-3" />
                   Full Activity
                 </a>
                 <button
                   onClick={fetchHistory}
-                  className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 text-white rounded-sm hover:bg-slate-700 uppercase transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 dark:bg-slate-800 text-white rounded-sm hover:bg-slate-700 dark:hover:bg-slate-700 uppercase transition-colors flex items-center justify-center gap-1.5"
                 >
                   <RefreshCw className="w-3 h-3" />
                   Sync Again
@@ -732,7 +730,7 @@ export default function RoutesPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold tracking-[0.25em] text-blue-600 uppercase">Manual Log</p>
-                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">{selected.route.name}</h2>
+                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 dark:text-slate-100 mt-0.5">{selected.route.name}</h2>
                   <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
                     <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                     {fmtDate(selected.route.date)}
@@ -746,14 +744,14 @@ export default function RoutesPage() {
                   { label: `${selected.route.distanceKm.toFixed(2)} km`, icon: Navigation },
                   { label: `${Math.round(selected.route.elevationM)} m elev`, icon: TrendingUp },
                 ].map(({ label, icon: Icon }) => (
-                  <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
+                  <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-sm">
                     <Icon className="w-3 h-3 text-slate-400" />
                     {label.toUpperCase()}
                   </span>
                 ))}
               </div>
 
-              <div className="relative bg-slate-100 rounded-sm overflow-hidden flex items-center justify-center" style={{ height: '240px' }}>
+              <div className="relative bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden flex items-center justify-center" style={{ height: '240px' }}>
                 <MiniPolyline polyline="" routeName={selected.route.name} />
                 <p className="absolute text-[11px] font-bold tracking-widest text-slate-400 uppercase">No map data — manual entry</p>
               </div>
@@ -767,10 +765,10 @@ export default function RoutesPage() {
                   value={`~${Math.round(selected.route.distanceKm * 62)} kcal`} sub="Estimated" />
               </div>
 
-              <div className="flex pt-2 border-t border-slate-100">
+              <div className="flex pt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   onClick={fetchHistory}
-                  className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 text-white rounded-sm hover:bg-slate-700 uppercase transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 dark:bg-slate-800 text-white rounded-sm hover:bg-slate-700 dark:hover:bg-slate-700 uppercase transition-colors flex items-center justify-center gap-1.5"
                 >
                   <RefreshCw className="w-3 h-3" />
                   Refresh

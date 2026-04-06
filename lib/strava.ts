@@ -18,30 +18,20 @@ export interface StravaCredentials {
 }
 
 /**
- * Loads Strava credentials. DB values take priority over .env so that
- * a web-based re-auth immediately takes effect.
+ * Loads Strava credentials exclusively from the UserSettings DB record.
+ * Returns null if the record is missing or any required field is blank.
+ * Configure credentials via the System Settings modal in the UI.
  */
 export async function getStravaCredentials(): Promise<StravaCredentials | null> {
   try {
     const settings = await prisma.userSettings.findFirst()
-
-    const clientId =
-      settings?.stravaClientId || process.env.STRAVA_CLIENT_ID || ''
-    const clientSecret =
-      settings?.stravaClientSecret || process.env.STRAVA_CLIENT_SECRET || ''
-    const refreshToken =
-      settings?.stravaRefreshToken || process.env.STRAVA_REFRESH_TOKEN || ''
-
+    const clientId     = settings?.stravaClientId?.trim()     ?? ''
+    const clientSecret = settings?.stravaClientSecret?.trim() ?? ''
+    const refreshToken = settings?.stravaRefreshToken?.trim() ?? ''
     if (!clientId || !clientSecret || !refreshToken) return null
-
     return { clientId, clientSecret, refreshToken }
   } catch {
-    // Prisma may not have the table yet during first boot — fall back to env
-    const clientId = process.env.STRAVA_CLIENT_ID || ''
-    const clientSecret = process.env.STRAVA_CLIENT_SECRET || ''
-    const refreshToken = process.env.STRAVA_REFRESH_TOKEN || ''
-    if (!clientId || !clientSecret || !refreshToken) return null
-    return { clientId, clientSecret, refreshToken }
+    return null
   }
 }
 

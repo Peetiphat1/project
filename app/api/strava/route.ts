@@ -53,7 +53,10 @@ function calcWeeklyStats(activities: StravaActivity[]): WeeklyStats {
 export async function GET(req: Request) {
   const creds = await getStravaCredentials()
   if (!creds) {
-    return NextResponse.json({ error: 'Strava not connected', notConnected: true }, { status: 503 })
+    return NextResponse.json(
+      { activities: [], weeklyStats: null, status: 'unconfigured' }, 
+      { status: 200 }
+    )
   }
 
   const url = new URL(req.url)

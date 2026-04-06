@@ -28,8 +28,9 @@ import {
   Link2,
   Link2Off,
   Trash2,
+  Settings,
 } from 'lucide-react'
-import { ManualActivityModal } from '@/app/components/Modals'
+import { ManualActivityModal, SettingsModal } from '@/app/components/Modals'
 import { useLanguage } from '@/lib/i18n'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -479,6 +480,12 @@ function DashboardInner() {
   const [syncing, setSyncing] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
 
+  // ── Settings modal ────────────────────────────────────────────────
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  /** true once we know keys are present; false = show "pending" banner */
+  const [stravaConfigured, setStravaConfigured] = useState<boolean | null>(null)
+  const settingsChecked = useRef(false)
+
   // ── Strava connection status ─────────────────────────────────────
   const [stravaStatus, setStravaStatus] = useState<{
     connected: boolean
@@ -643,6 +650,23 @@ function DashboardInner() {
     }
   }
 
+  // ── Check settings once on initial load ──────────────────────────
+  useEffect(() => {
+    if (settingsChecked.current) return
+    settingsChecked.current = true
+
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { stravaClientId?: string; stravaRefreshToken?: string } | null) => {
+        const configured =
+          !!data?.stravaClientId?.trim() && !!data?.stravaRefreshToken?.trim()
+        setStravaConfigured(configured)
+        if (!configured) setSettingsOpen(true)
+      })
+      .catch(() => setStravaConfigured(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     // Fetch weather
     fetch('/api/weather').then(r => r.json()).then(setWeather).catch(() => {})
@@ -672,6 +696,24 @@ function DashboardInner() {
 
     // Unified recent performance fetch
     fetchRecentPerformance()
+
+    // ── Listen for Settings Save to Auto-Refresh Dashboard ────────────────
+    const onSettingsSaved = () => {
+      setStravaConfigured(true)
+      
+      // Re-fetch Strava connection status
+      fetch('/api/strava/status')
+        .then(r => r.ok ? r.json() : { connected: false, athleteName: null })
+        .then((s: { connected: boolean; athleteName?: string | null }) =>
+          setStravaStatus({ connected: s.connected, athleteName: s.athleteName ?? null })
+        )
+        .catch(() => {})
+
+      // Re-fetch activities from Strava & DB
+      fetchRecentPerformance()
+    }
+    window.addEventListener('settings-saved', onSettingsSaved)
+    return () => window.removeEventListener('settings-saved', onSettingsSaved)
   }, [])
 
   // ── Read OAuth redirect params ───────────────────────────────────────
@@ -744,6 +786,54 @@ function DashboardInner() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
+      {/* ── Settings modal ────────────────────────────────────────── */}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => {
+            setSettingsOpen(false)
+            // Re-check whether the user just saved valid keys
+            fetch('/api/settings')
+              .then(r => r.ok ? r.json() : null)
+              .then((data: { stravaClientId?: string; stravaRefreshToken?: string } | null) => {
+                const configured =
+                  !!data?.stravaClientId?.trim() && !!data?.stravaRefreshToken?.trim()
+                setStravaConfigured(configured)
+                if (configured) fetchRecentPerformance()
+              })
+              .catch(() => {})
+          }}
+        />
+      )}
+
+      {/* ── Pending configuration banner ─────────────────────────── */}
+      {stravaConfigured === false && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 px-4 py-3 rounded-sm border bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm font-bold"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span className="tracking-wide">
+              PENDING CONFIGURATION — Strava API keys are not set.{' '}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="underline underline-offset-2 hover:no-underline transition-all"
+              >
+                Open Settings
+              </button>
+              {' '}to connect your account.
+            </span>
+          </div>
+          <button
+            onClick={() => setStravaConfigured(null)}
+            aria-label="Dismiss"
+            className="shrink-0 p-1 rounded-sm hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── Strava connection banner (success / error) ─────────── */}
       {stravaBanner && (
         <div
@@ -773,9 +863,22 @@ function DashboardInner() {
       >
         {/* Left: Hero copy */}
         <div className="lg:col-span-2">
-          <p className="text-[11px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-2">
-            Week 18 · Training Block 3
-          </p>
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-2">
+              Week 18 · Training Block 3
+            </p>
+            {/* Manual settings trigger on dashboard */}
+            <button
+              id="dashboard-settings-btn"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Open system settings"
+              title="System Settings & API Integrations"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-sm hover:border-orange-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors uppercase"
+            >
+              <Settings className="w-3.5 h-3.5" aria-hidden="true" />
+              Settings
+            </button>
+          </div>
           <h1
             id="hero-heading"
             className="font-extrabold tracking-tight text-slate-900 dark:text-slate-100 leading-none text-5xl sm:text-6xl lg:text-7xl"
@@ -982,14 +1085,15 @@ function DashboardInner() {
                   </button>
                 </div>
               ) : (
-                <a
-                  href="/api/strava/login"
+                <button
+                  type="button"
                   id="connect-strava-btn"
+                  onClick={() => window.dispatchEvent(new Event('open-settings'))}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest uppercase rounded-sm transition-colors"
                 >
                   <Link2 className="w-3 h-3" />
                   {t('connectStrava')}
-                </a>
+                </button>
               )}
               <button
                 id="dashboard-log-manual-btn"
@@ -1038,14 +1142,15 @@ function DashboardInner() {
               {stravaStatus.connected ? (
                 <p className="text-[11px] text-slate-400 mt-1">Log a manual activity or click &ldquo;Sync Now&rdquo; below to pull from Strava.</p>
               ) : (
-                <a
-                  href="/api/strava/login"
+                <button
+                  type="button"
                   id="empty-connect-strava-btn"
+                  onClick={() => window.dispatchEvent(new Event('open-settings'))}
                   className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest uppercase rounded-sm transition-colors"
                 >
                   <Link2 className="w-3 h-3" />
                   {t('connectStrava')}
-                </a>
+                </button>
               )}
             </div>
           )}
@@ -1079,6 +1184,7 @@ function DashboardInner() {
           }}
         />
       )}
+
 
       {/* ── Gear Health ───────────────────────────────────────────── */}
       <section id="gear-health" aria-labelledby="gear-heading" className="grid grid-cols-1 lg:grid-cols-3 gap-6">

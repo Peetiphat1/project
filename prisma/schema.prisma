@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
+
 
 model Route {
   id         String   @id @default(cuid())
@@ -36,6 +37,7 @@ model Gear {
   status          String   @default("Active")
   isDefault       Boolean  @default(false)
   imageUrl        String?
+  athleteId       String?  // scopes shoe to a specific Strava athlete
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -74,6 +76,8 @@ model UserSettings {
   stravaRefreshToken  String?
   stravaAthleteId     String?
   stravaAthleteName   String?
+  currentAthleteId    String?  // set after successful credential verification
+  autoSync            Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

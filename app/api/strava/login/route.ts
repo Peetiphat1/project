@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { getStravaCredentials } from '@/lib/strava'
+import prisma from '@/lib/prisma'
 
 export async function GET(req: Request) {
   // Prefer DB-stored clientId, fall back to env
-  const creds = await getStravaCredentials()
-  const clientId = creds?.clientId || process.env.STRAVA_CLIENT_ID
+  const settings = await prisma.userSettings.findFirst()
+  const clientId = settings?.stravaClientId?.trim() || process.env.STRAVA_CLIENT_ID
 
   if (!clientId) {
     return new Response(

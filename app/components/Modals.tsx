@@ -3,11 +3,12 @@
 /**
  * app/components/Modals.tsx
  *
- * Four modal interfaces for Prisma CRUD operations:
+ * Modal interfaces for Prisma CRUD operations:
  *   - AddRouteModal
  *   - EditRouteModal
  *   - AddGearModal
  *   - EditGearModal
+ *   - SettingsModal  (System Settings & API Integrations)
  *
  * Each modal is a named export so pages can import exactly what they need.
  * Validation mirrors Zod's error shape so it can be swapped for real Zod
@@ -15,7 +16,8 @@
  */
 
 import { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent } from 'react'
-import { routeSchema, gearSchema, manualActivitySchema } from '@/lib/validations'
+import { useRouter } from 'next/navigation'
+import { routeSchema, gearSchema, manualActivitySchema, systemSettingsSchema } from '@/lib/validations'
 import {
   X,
   Trash2,
@@ -38,6 +40,12 @@ import {
   Activity,
   Navigation,
   Clock,
+  KeyRound,
+  RefreshCw,
+  Zap,
+  BadgeCheck,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1816,3 +1824,426 @@ export function EditActivityModal({
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS MODAL — System Settings & API Integrations
+// ─────────────────────────────────────────────────────────────────────────────
+
+type SettingsFields = 'stravaClientId' | 'stravaClientSecret' | 'stravaRefreshToken'
+
+interface SettingsForm {
+  stravaClientId: string
+  stravaClientSecret: string
+  stravaRefreshToken: string
+  autoSync: boolean
+}
+
+/** Strava flame SVG logo */
+function StravaFlame({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L8.679 0 3.533 10.172h4.168" />
+    </svg>
+  )
+}
+
+export function SettingsModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  const [form, setForm] = useState<SettingsForm>({
+    stravaClientId: '',
+    stravaClientSecret: '',
+    stravaRefreshToken: '',
+    autoSync: true,
+  })
+  const [errors, setErrors]           = useState<Partial<Record<SettingsFields, string>>>({})
+  const [banner, setBanner]           = useState<'success' | 'error' | 'invalid_creds' | null>(null)
+  const [bannerMsg, setBannerMsg]     = useState('')
+  const [saving, setSaving]           = useState(false)
+  const [loading, setLoading]         = useState(true)
+  const [showSecret, setShowSecret]   = useState(false)
+  const [showToken, setShowToken]     = useState(false)
+  const [connectedAthlete, setConnectedAthlete] = useState<{ name: string; id: string } | null>(null)
+
+  // Pre-populate from DB on mount
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        setForm({
+          stravaClientId:     data.stravaClientId     ?? '',
+          stravaClientSecret: data.stravaClientSecret ?? '',
+          stravaRefreshToken: data.stravaRefreshToken ?? '',
+          autoSync:           data.autoSync           ?? true,
+        })
+        if (data.currentAthleteId && data.stravaAthleteName) {
+          setConnectedAthlete({ id: data.currentAthleteId, name: data.stravaAthleteName })
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  function setField(field: SettingsFields, value: string) {
+    setForm((f) => ({ ...f, [field]: value }))
+    setErrors((e) => ({ ...e, [field]: undefined }))
+    setBanner(null)
+  }
+
+  function toggleAutoSync() {
+    setForm((f) => ({ ...f, autoSync: !f.autoSync }))
+    setBanner(null)
+  }
+
+  /** Zod validation on client — mirrors server schema */
+  function validate(): boolean {
+    const result = systemSettingsSchema.safeParse({
+      stravaClientId:     form.stravaClientId.trim(),
+      stravaClientSecret: form.stravaClientSecret.trim(),
+      stravaRefreshToken: form.stravaRefreshToken.trim(),
+      autoSync:           form.autoSync,
+    })
+    if (!result.success) {
+      const errs: Partial<Record<SettingsFields, string>> = {}
+      result.error.issues.forEach((iss) => {
+        const field = iss.path[0] as SettingsFields
+        errs[field] = iss.message
+      })
+      setErrors(errs)
+      return false
+    }
+    setErrors({})
+    return true
+  }
+
+  async function handleSave() {
+    if (!validate()) { setBanner('error'); setBannerMsg('Fix the errors above before saving.'); return }
+    setSaving(true)
+    setBanner(null)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stravaClientId:     form.stravaClientId.trim(),
+          stravaClientSecret: form.stravaClientSecret.trim(),
+          stravaRefreshToken: form.stravaRefreshToken.trim(),
+          autoSync:           form.autoSync,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        const msg = json.error === 'invalid_credentials'
+          ? (json.message ?? 'Strava rejected these credentials. Check your Client ID, Secret, and Refresh Token.')
+          : 'Failed to save — please try again.'
+        setBannerMsg(msg)
+        setBanner('invalid_creds')
+        return
+      }
+      if (json.needsAuth) {
+        window.location.href = '/api/strava/login'
+        return
+      }
+
+      setConnectedAthlete(
+        json.athleteId ? { id: json.athleteId, name: json.athleteName ?? 'Athlete' } : null
+      )
+      setBannerMsg(`Connected as ${json.athleteName ?? 'Athlete'} — credentials verified & saved.`)
+      setBanner('success')
+      onClose()
+      router.refresh()
+      window.dispatchEvent(new Event('settings-saved'))
+    } catch {
+      setBannerMsg('Network error — please try again.')
+      setBanner('error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell id="settings-modal" onClose={onClose} width="max-w-2xl">
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <p className="text-[9px] font-black tracking-[0.35em] text-orange-600 uppercase">
+              CONFIGURATION
+            </p>
+            <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-slate-50 uppercase">
+              SYSTEM SETTINGS &amp; API INTEGRATIONS
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close settings"
+            className="p-1.5 rounded-sm text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+        {/* sub-divider */}
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          <span className="text-[9px] font-black tracking-[0.3em] text-slate-400 uppercase whitespace-nowrap">
+            --- EXTERNAL DATA SOURCES ---
+          </span>
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+        </div>
+      </div>
+
+      {/* ── Body ────────────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-12 gap-3 text-slate-400">
+            <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
+            <span className="text-xs font-bold tracking-widest uppercase">Loading configuration…</span>
+          </div>
+        ) : (
+          <>
+            {/* ── Strava Card ───────────────────────────────────────────── */}
+            <div className="border border-slate-200 dark:border-slate-700 rounded-sm overflow-hidden">
+              {/* Card header */}
+              <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2.5">
+                  {/* Strava flame */}
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" aria-hidden="true">
+                    <path fill="#FC4C02" d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+                  </svg>
+                  <div>
+                    <p className="text-[10px] font-black tracking-[0.25em] text-slate-700 dark:text-slate-200 uppercase leading-tight">
+                      CONNECT STRAVA
+                    </p>
+                    <p className="text-[8px] font-bold tracking-widest text-slate-400 uppercase">
+                      CLOUD SYNCHRONISATION ENGINE
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {connectedAthlete ? (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-sm text-[9px] font-black tracking-widest uppercase bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
+                      <CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" />
+                      {connectedAthlete.name}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-sm text-[9px] font-black tracking-widest uppercase bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600">
+                      NOT CONNECTED
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded-sm text-[9px] font-black tracking-widest uppercase bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
+                    API V3 ACTIVE
+                  </span>
+                </div>
+              </div>
+
+              {/* Card header */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <span className="flex items-center justify-center w-7 h-7 rounded-sm bg-[#FC4C02] shrink-0">
+                  <StravaFlame className="w-4 h-4 text-white" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black tracking-[0.2em] text-slate-900 dark:text-slate-50 uppercase truncate">
+                    CONNECT STRAVA (CLOUD SYNCHRONISATION ENGINE)
+                  </p>
+                </div>
+                {/* Status pill */}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 uppercase whitespace-nowrap">
+                  <CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" />
+                  API V3 ACTIVE
+                </span>
+              </div>
+
+              {/* Card fields */}
+              <div className="px-4 py-5 space-y-5 bg-white dark:bg-slate-900">
+
+                {/* Client ID */}
+                <FieldWrapper
+                  label="STRAVA CLIENT ID"
+                  htmlFor="st-client-id"
+                  hint="Found in your Strava API application settings"
+                  required
+                >
+                  <TextInput
+                    id="st-client-id"
+                    placeholder="e.g. 123456"
+                    value={form.stravaClientId}
+                    onChange={(v) => setField('stravaClientId', v)}
+                    error={errors.stravaClientId}
+                    icon={KeyRound}
+                  />
+                  {errors.stravaClientId && (
+                    <p role="alert" className="flex items-center gap-1.5 text-[11px] font-bold text-orange-500 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      {errors.stravaClientId}
+                    </p>
+                  )}
+                </FieldWrapper>
+
+                {/* Client Secret */}
+                <FieldWrapper
+                  label="STRAVA CLIENT SECRET"
+                  htmlFor="st-client-secret"
+                  hint="Keep this private — used to exchange refresh tokens"
+                  required
+                >
+                  <div className="relative">
+                    <KeyRound
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <input
+                      id="st-client-secret"
+                      type={showSecret ? 'text' : 'password'}
+                      placeholder="Enter your client secret"
+                      value={form.stravaClientSecret}
+                      onChange={(e) => setField('stravaClientSecret', e.target.value)}
+                      className={[
+                        inputBaseClass,
+                        'pl-9 pr-9',
+                        errors.stravaClientSecret ? inputErr : inputOk,
+                      ].join(' ')}
+                      aria-invalid={!!errors.stravaClientSecret}
+                      aria-describedby={errors.stravaClientSecret ? 'st-client-secret-err' : undefined}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSecret((v) => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                      aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+                    >
+                      {showSecret
+                        ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
+                        : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
+                    </button>
+                  </div>
+                  {errors.stravaClientSecret && (
+                    <p id="st-client-secret-err" role="alert" className="flex items-center gap-1.5 text-[11px] font-bold text-orange-500 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      {errors.stravaClientSecret}
+                    </p>
+                  )}
+                </FieldWrapper>
+
+                {/* Refresh Token */}
+                <FieldWrapper
+                  label="REFRESH TOKEN"
+                  htmlFor="st-refresh-token"
+                  hint="Obtained after completing the Strava OAuth flow"
+                  required
+                >
+                  <div className="relative">
+                    <RefreshCw
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <input
+                      id="st-refresh-token"
+                      type={showToken ? 'text' : 'password'}
+                      placeholder="Enter your refresh token"
+                      value={form.stravaRefreshToken}
+                      onChange={(e) => setField('stravaRefreshToken', e.target.value)}
+                      className={[
+                        inputBaseClass,
+                        'pl-9 pr-9',
+                        errors.stravaRefreshToken ? inputErr : inputOk,
+                      ].join(' ')}
+                      aria-invalid={!!errors.stravaRefreshToken}
+                      aria-describedby={errors.stravaRefreshToken ? 'st-refresh-token-err' : undefined}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken((v) => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                      aria-label={showToken ? 'Hide token' : 'Show token'}
+                    >
+                      {showToken
+                        ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
+                        : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
+                    </button>
+                  </div>
+                  {errors.stravaRefreshToken && (
+                    <p id="st-refresh-token-err" role="alert" className="flex items-center gap-1.5 text-[11px] font-bold text-orange-500 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      {errors.stravaRefreshToken}
+                    </p>
+                  )}
+                </FieldWrapper>
+
+                {/* Auto-Sync Toggle */}
+                <div className="flex items-start justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-start gap-2.5 mt-2">
+                    <Zap className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" aria-hidden="true" />
+                    <div>
+                      <p className="text-[10px] font-black tracking-[0.2em] text-slate-800 dark:text-slate-100 uppercase">
+                        Auto-Sync Daily Runs
+                      </p>
+                      <p className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mt-0.5">
+                        AUTOMATED BACKGROUND FETCH AT 04:00 GMT
+                      </p>
+                    </div>
+                  </div>
+                  {/* Toggle switch */}
+                  <button
+                    id="st-autosync-toggle"
+                    type="button"
+                    role="switch"
+                    aria-checked={form.autoSync}
+                    onClick={toggleAutoSync}
+                    className={[
+                      'relative inline-flex shrink-0 mt-2 h-5 w-9 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2',
+                      form.autoSync ? 'bg-orange-600' : 'bg-slate-200 dark:bg-slate-700',
+                    ].join(' ')}
+                  >
+                    <span
+                      className={[
+                        'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transform transition-transform duration-200',
+                        form.autoSync ? 'translate-x-4' : 'translate-x-0',
+                      ].join(' ')}
+                    />
+                  </button>
+                </div>
+
+              </div>{/* /card fields */}
+            </div>{/* /strava card */}
+
+            {/* Success / Error banners */}
+            {banner === 'success' && (
+              <div
+                role="status"
+                className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 rounded-sm px-3 py-2.5 text-xs font-bold text-emerald-700 dark:text-emerald-400"
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                {bannerMsg}
+              </div>
+            )}
+            {(banner === 'error' || banner === 'invalid_creds') && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-sm px-3 py-2.5 text-xs font-bold text-red-700 dark:text-red-400"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                {bannerMsg}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Footer ──────────────────────────────────────────────────────── */}
+      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+        <button
+          id="st-save-btn"
+          type="button"
+          onClick={handleSave}
+          disabled={saving || loading}
+          className="w-full flex items-center justify-center gap-2 py-3 text-sm font-black tracking-[0.2em] uppercase bg-[#B45309] hover:bg-[#92400E] active:scale-[0.99] text-white rounded-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+        >
+          {saving ? (
+            <><RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" /> SAVING &amp; CONNECTING…</>
+          ) : (
+            <><Save className="w-4 h-4" aria-hidden="true" /> SAVE &amp; CONNECT</>
+          )}
+        </button>
+      </div>
+    </ModalShell>
+  )
+}

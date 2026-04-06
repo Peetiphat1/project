@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { useLanguage } from '@/lib/i18n'
+import { SettingsModal } from '@/app/components/Modals'
 import {
   Bell,
   Settings,
@@ -20,12 +21,20 @@ import {
 export default function NavBar() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { lang, setLang, t } = useLanguage()
   const [mounted, setMounted] = useState(false)
 
   // next-themes needs the component to be mounted before reading the theme
   useEffect(() => setMounted(true), [])
+
+  // Allow any component to open the settings modal via: window.dispatchEvent(new Event('open-settings'))
+  useEffect(() => {
+    const handler = () => setSettingsOpen(true)
+    window.addEventListener('open-settings', handler)
+    return () => window.removeEventListener('open-settings', handler)
+  }, [])
 
   const navLinks = [
     { key: 'dashboard' as const, href: '/' },
@@ -151,7 +160,8 @@ export default function NavBar() {
           {/* Settings */}
           <button
             id="nav-settings"
-            aria-label="Settings"
+            aria-label="System Settings"
+            onClick={() => setSettingsOpen(true)}
             className="p-2 rounded-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <Settings className="w-5 h-5" aria-hidden="true" />
@@ -259,7 +269,8 @@ export default function NavBar() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full" />
             </button>
             <button
-              aria-label="Settings"
+              aria-label="System Settings"
+              onClick={() => { setSettingsOpen(true); setMobileOpen(false) }}
               className="p-2 rounded-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               <Settings className="w-5 h-5" />
@@ -273,6 +284,9 @@ export default function NavBar() {
           </div>
         </div>
       )}
+
+      {/* ── Settings Modal ──────────────────────────────────────────────── */}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </header>
   )
 }
