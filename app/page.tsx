@@ -30,6 +30,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ManualActivityModal } from '@/app/components/Modals'
+import { useLanguage } from '@/lib/i18n'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -272,10 +273,10 @@ function PolylineMap({ polyline }: { polyline: string }) {
 function RunStat({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{label}</span>
+      <span className="text-[10px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">{label}</span>
       <div className="flex items-baseline gap-1">
-        <span className="font-mono text-2xl font-bold text-slate-900 tabular-nums">{value}</span>
-        <span className="text-xs text-slate-500 font-mono">{unit}</span>
+        <span className="font-mono text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{unit}</span>
       </div>
     </div>
   )
@@ -292,11 +293,10 @@ function StravaCard({ activity, index }: { activity: StravaActivity; index: numb
   return (
     <article
       id={`strava-card-${index + 1}`}
-      className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200"
       aria-label={`${activity.name} Strava run`}
     >
-      {/* Polyline Map */}
-      <div className="relative h-36 bg-slate-100 overflow-hidden">
+      <div className="relative h-36 bg-slate-100 dark:bg-slate-800 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="absolute w-full border-t border-slate-400" style={{ top: `${12 + i * 12}%` }} />
@@ -306,9 +306,9 @@ function StravaCard({ activity, index }: { activity: StravaActivity; index: numb
           ))}
         </div>
         <PolylineMap polyline={activity.map?.summary_polyline ?? ''} />
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-sm shadow-sm">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-sm shadow-sm">
           <Activity className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
-          <span className="text-[10px] font-bold tracking-widest text-slate-700 uppercase">Strava {activity.type}</span>
+          <span className="text-[10px] font-bold tracking-widest text-slate-700 dark:text-slate-200 uppercase">Strava {activity.type}</span>
         </div>
         <div className="absolute top-3 right-3 bg-orange-600 text-white text-[10px] font-bold tracking-widest px-2 py-1 rounded-sm">
           SYNCED
@@ -318,37 +318,37 @@ function StravaCard({ activity, index }: { activity: StravaActivity; index: numb
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-bold text-slate-900 text-sm leading-tight">{activity.name}</h3>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight">{activity.name}</h3>
             <p className="text-[11px] text-slate-400 tracking-wide mt-0.5 flex items-center gap-1">
               <Clock className="w-3 h-3" aria-hidden="true" />
               {date}
             </p>
           </div>
-          <button aria-label={`View details for ${activity.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors">
+          <button aria-label={`View details for ${activity.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 transition-colors">
             <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
           <RunStat label="Distance" value={km} unit="km" />
           <RunStat label="Time" value={time} unit="" />
           <RunStat label="Pace" value={pace} unit="/km" />
         </div>
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
               <TrendingUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
               <span className="font-mono">{elev}m</span>
               <span className="text-slate-400">elev.</span>
             </span>
-            <span className="flex items-center gap-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
               <Flame className="w-3 h-3 text-orange-400" aria-hidden="true" />
               <span className="font-mono">{kcal}</span>
               <span className="text-slate-400">kcal</span>
             </span>
           </div>
-          <span className="text-[10px] font-bold tracking-wider text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-sm">
+          <span className="text-[10px] font-bold tracking-wider text-green-700 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 px-2 py-0.5 rounded-sm">
             STRAVA
           </span>
         </div>
@@ -387,11 +387,10 @@ function UnifiedPerfCard({ item, index }: { item: RecentItem; index: number }) {
   return (
     <article
       id={`run-card-${index + 1}`}
-      className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200"
+      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200"
       aria-label={`${item.name} ${isStrava ? 'Strava run' : 'manual log'}`}
     >
-      {/* Map area */}
-      <div className="relative h-36 bg-slate-100 overflow-hidden">
+      <div className="relative h-36 bg-slate-100 dark:bg-slate-800 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="absolute w-full border-t border-slate-400" style={{ top: `${12 + i * 12}%` }} />
@@ -401,9 +400,9 @@ function UnifiedPerfCard({ item, index }: { item: RecentItem; index: number }) {
           ))}
         </div>
         <PolylineMap polyline={item.polyline ?? ''} />
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-sm shadow-sm">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-sm shadow-sm">
           <Activity className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
-          <span className="text-[10px] font-bold tracking-widest text-slate-700 uppercase">
+          <span className="text-[10px] font-bold tracking-widest text-slate-700 dark:text-slate-200 uppercase">
             {isStrava ? `Strava ${item.typeLabel}` : item.typeLabel}
           </span>
         </div>
@@ -418,18 +417,18 @@ function UnifiedPerfCard({ item, index }: { item: RecentItem; index: number }) {
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-bold text-slate-900 text-sm leading-tight">{item.name}</h3>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight">{item.name}</h3>
             <p className="text-[11px] text-slate-400 tracking-wide mt-0.5 flex items-center gap-1">
               <Clock className="w-3 h-3" aria-hidden="true" />
               {dateStr}
             </p>
           </div>
-          <button aria-label={`View details for ${item.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors">
+          <button aria-label={`View details for ${item.name}`} className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 transition-colors">
             <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
           <RunStat label="Distance" value={item._km.toFixed(2)} unit="km" />
           {timeStr
             ? <RunStat label="Time" value={timeStr} unit="" />
@@ -441,21 +440,21 @@ function UnifiedPerfCard({ item, index }: { item: RecentItem; index: number }) {
           }
         </div>
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
               <TrendingUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
               <span className="font-mono">{item.elev}m</span>
               <span className="text-slate-400">elev.</span>
             </span>
-            <span className="flex items-center gap-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
               <Flame className="w-3 h-3 text-orange-400" aria-hidden="true" />
               <span className="font-mono">{item.kcal}</span>
               <span className="text-slate-400">kcal</span>
             </span>
           </div>
           <span className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm ${
-            isStrava ? 'text-green-700 bg-green-50 border border-green-200' : 'text-blue-700 bg-blue-50 border border-blue-200'
+            isStrava ? 'text-green-700 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900' : 'text-blue-700 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900'
           }`}>
             {isStrava ? 'STRAVA' : 'MANUAL'}
           </span>
@@ -554,8 +553,8 @@ function DashboardInner() {
     setRecentLoading(true)
     try {
       const [stravaRes, actRes] = await Promise.all([
-        fetch('/api/strava').catch(() => null),
-        fetch('/api/activities').catch(() => null),
+        fetch('/api/strava', { cache: 'no-store' }).catch(() => null),
+        fetch('/api/activities', { cache: 'no-store' }).catch(() => null),
       ])
 
       const items: RecentItem[] = []
@@ -649,7 +648,7 @@ function DashboardInner() {
     fetch('/api/weather').then(r => r.json()).then(setWeather).catch(() => {})
 
     // Fetch default gear
-    fetch('/api/gear')
+    fetch('/api/gear', { cache: 'no-store' })
       .then(r => r.json())
       .then((gear: GearData[]) => {
         const def = gear.find(g => g.isDefault) ?? gear[0] ?? null
@@ -658,7 +657,7 @@ function DashboardInner() {
       .catch(() => {})
 
     // Fetch milestone from DB
-    fetch('/api/milestone')
+    fetch('/api/milestone', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: Milestone) => setMilestone(data))
       .catch(() => {})
@@ -720,8 +719,8 @@ function DashboardInner() {
       const res = await fetch('/api/strava/sync', { method: 'POST' })
       if (res.ok) {
         const [gearRes, msRes] = await Promise.all([
-          fetch('/api/gear').then(r => r.json()),
-          fetch('/api/milestone').then(r => r.json()),
+          fetch('/api/gear', { cache: 'no-store' }).then(r => r.json()),
+          fetch('/api/milestone', { cache: 'no-store' }).then(r => r.json()),
         ])
         const def = (gearRes as GearData[]).find(g => g.isDefault) ?? (gearRes as GearData[])[0] ?? null
         setDefaultGear(def)
@@ -738,6 +737,7 @@ function DashboardInner() {
     ? Math.max(0, defaultGear.targetLifespan - defaultGear.startingMileage)
     : 0
 
+  const { t } = useLanguage()
   const isHighHeat = weather && weather.temp >= 28
   const isRainy = weather && (weather.icon.startsWith('09') || weather.icon.startsWith('10'))
 
@@ -751,15 +751,15 @@ function DashboardInner() {
           className={[
             'flex items-center justify-between gap-3 px-4 py-3 rounded-sm border text-sm font-bold',
             stravaBanner.type === 'success'
-              ? 'bg-green-50 border-green-300 text-green-800'
-              : 'bg-red-50 border-red-300 text-red-800',
+              ? 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-800 text-green-800 dark:text-green-300'
+              : 'bg-red-50 dark:bg-red-950 border-red-300 dark:border-red-800 text-red-800 dark:text-red-300',
           ].join(' ')}
         >
           <span>{stravaBanner.message}</span>
           <button
             onClick={() => setStravaBanner(null)}
             aria-label="Dismiss"
-            className="shrink-0 p-1 rounded-sm hover:bg-black/10 transition-colors"
+            className="shrink-0 p-1 rounded-sm hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -778,31 +778,31 @@ function DashboardInner() {
           </p>
           <h1
             id="hero-heading"
-            className="font-extrabold tracking-tight text-slate-900 leading-none text-5xl sm:text-6xl lg:text-7xl"
+            className="font-extrabold tracking-tight text-slate-900 dark:text-slate-100 leading-none text-5xl sm:text-6xl lg:text-7xl"
           >
             FOCUS
             <br />
-            <span className="text-slate-300">PHASE</span>
+            <span className="text-slate-300 dark:text-slate-600">PHASE</span>
           </h1>
-          <p className="mt-4 text-slate-500 text-base max-w-lg leading-relaxed">
-            <span className="font-bold text-slate-700 uppercase tracking-wide">Keep the momentum.</span>{' '}
+          <p className="mt-4 text-slate-500 dark:text-slate-400 text-base max-w-lg leading-relaxed">
+            <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Keep the momentum.</span>{' '}
             You&apos;re 3 runs into your weekly target. Your long run is scheduled for Sunday. Stay consistent.
           </p>
 
           {/* Quick stats bar */}
           <div id="weekly-stats" className="mt-6 grid grid-cols-3 gap-3" aria-label="This week's quick stats">
             {[
-              { icon: Footprints, label: 'Weekly KM', value: weeklyStats ? weeklyStats.weeklyKm : '—', unit: 'km' },
-              { icon: Zap, label: 'Avg Pace', value: weeklyStats ? weeklyStats.avgPace : '—', unit: '/km' },
-              { icon: BarChart2, label: 'Runs', value: weeklyStats ? String(weeklyStats.runCount) : '—', unit: 'this wk' },
+              { icon: Footprints, label: t('weeklyKm'), value: weeklyStats ? weeklyStats.weeklyKm : '—', unit: 'km' },
+              { icon: Zap, label: t('avgPace'), value: weeklyStats ? weeklyStats.avgPace : '—', unit: '/km' },
+              { icon: BarChart2, label: t('runs'), value: weeklyStats ? String(weeklyStats.runCount) : '—', unit: t('thisWeek') },
             ].map(({ icon: Icon, label, value, unit }) => (
-              <div key={label} className="bg-white border border-slate-200 rounded-sm p-3 shadow-sm flex flex-col gap-1">
+              <div key={label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm p-3 shadow-sm flex flex-col gap-1">
                 <div className="flex items-center gap-1.5">
                   <Icon className="w-3.5 h-3.5 text-orange-500" aria-hidden="true" />
-                  <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{label}</span>
+                  <span className="text-[10px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">{label}</span>
                 </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="font-mono text-xl font-bold text-slate-900 tabular-nums">{value}</span>
+                  <span className="font-mono text-xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</span>
                   <span className="text-xs text-slate-400 font-mono">{unit}</span>
                 </div>
               </div>
@@ -815,68 +815,66 @@ function DashboardInner() {
           {/* Weather Widget */}
           <article
             id="weather-widget"
-            className="bg-white border border-slate-200 rounded-sm shadow-sm p-4"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm p-4"
             aria-label="Current weather conditions"
           >
             <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-3">
-              Conditions Today
+              {t('conditionsToday')}
             </p>
             {weather ? (
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-amber-50 rounded-sm flex items-center justify-center">
+                    <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950 rounded-sm flex items-center justify-center">
                       <WeatherIcon icon={weather.icon} />
                     </div>
                     <div>
-                      <div className="font-mono text-3xl font-bold text-slate-900">
+                      <div className="font-mono text-3xl font-bold text-slate-900 dark:text-slate-100">
                         {weather.temp}°<span className="text-lg text-slate-400">C</span>
                       </div>
-                      <p className="text-xs text-slate-500 font-bold tracking-wide capitalize">{weather.description}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-wide capitalize">{weather.description}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
-                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                       <Wind className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
                       <span className="font-mono">{weather.wind} km/h</span>
                     </span>
-                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                       <Droplets className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
                       <span className="font-mono">{weather.humidity}%</span>
                     </span>
-                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                       <MapPin className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
                       <span>{weather.city}</span>
                     </span>
                   </div>
                 </div>
                 {isHighHeat && (
-                  <p className="mt-3 text-[11px] text-amber-600 bg-amber-50 rounded-sm px-2 py-1 font-bold tracking-wide">
+                  <p className="mt-3 text-[11px] text-amber-600 bg-amber-50 dark:bg-amber-950 rounded-sm px-2 py-1 font-bold tracking-wide">
                     ⚠ High heat — hydrate aggressively
                   </p>
                 )}
                 {isRainy && (
-                  <p className="mt-3 text-[11px] text-blue-600 bg-blue-50 rounded-sm px-2 py-1 font-bold tracking-wide">
+                  <p className="mt-3 text-[11px] text-blue-600 bg-blue-50 dark:bg-blue-950 rounded-sm px-2 py-1 font-bold tracking-wide">
                     🌧 Rain expected — trail conditions may be slippery
                   </p>
                 )}
               </>
             ) : (
-              <div className="h-16 bg-slate-100 rounded-sm animate-pulse" />
+              <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-sm animate-pulse" />
             )}
           </article>
 
-          {/* Next Milestone card */}
           <article
             id="next-milestone-card"
-            className="bg-slate-900 border border-slate-800 rounded-sm shadow-sm p-4 text-white"
+            className="bg-slate-900 dark:bg-slate-800 border border-slate-800 dark:border-slate-700 rounded-sm shadow-sm p-4 text-white"
             aria-label="Next milestone"
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Next Milestone</p>
+              <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{t('nextMilestone')}</p>
               <div className="flex items-center gap-1.5">
                 <Trophy className="w-4 h-4 text-amber-400" aria-hidden="true" />
-                {/* Reset progress button */}
                 <button
                   id="milestone-reset-btn"
                   onClick={resetMilestone}
@@ -887,7 +885,6 @@ function DashboardInner() {
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
-                {/* Edit goal button */}
                 <button
                   id="milestone-edit-btn"
                   onClick={openMilestoneEdit}
@@ -903,7 +900,7 @@ function DashboardInner() {
               <div className="flex flex-col gap-2">
                 <input
                   id="milestone-title-input"
-                  className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-bold w-full outline-none focus:border-orange-500"
+                  className="bg-slate-800 dark:bg-slate-700 border border-slate-700 dark:border-slate-600 rounded-sm px-2 py-1.5 text-white text-xs font-bold w-full outline-none focus:border-orange-500"
                   placeholder="Goal title"
                   value={milestoneForm.title}
                   onChange={e => setMilestoneForm(f => ({ ...f, title: e.target.value }))}
@@ -911,17 +908,17 @@ function DashboardInner() {
                 <input
                   id="milestone-target-input"
                   type="number"
-                  className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
+                  className="bg-slate-800 dark:bg-slate-700 border border-slate-700 dark:border-slate-600 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
                   placeholder="Target km"
                   value={milestoneForm.targetKm}
                   onChange={e => setMilestoneForm(f => ({ ...f, targetKm: e.target.value }))}
                 />
                 <div className="flex gap-2">
                   <button id="milestone-save-btn" onClick={saveMilestone} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest rounded-sm uppercase transition-colors">
-                    <Check className="w-3 h-3" />Save
+                    <Check className="w-3 h-3" />{t('save')}
                   </button>
-                  <button id="milestone-cancel-btn" onClick={() => setMilestoneEditing(false)} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 text-[10px] font-bold tracking-widest rounded-sm uppercase transition-colors">
-                    <X className="w-3 h-3" />Cancel
+                  <button id="milestone-cancel-btn" onClick={() => setMilestoneEditing(false)} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-slate-400 text-[10px] font-bold tracking-widest rounded-sm uppercase transition-colors">
+                    <X className="w-3 h-3" />{t('cancel')}
                   </button>
                 </div>
               </div>
@@ -933,11 +930,11 @@ function DashboardInner() {
                 </p>
                 <div className="mt-4">
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Progress</span>
+                    <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{t('progress')}</span>
                     <span className="font-mono text-xs text-orange-400 font-bold">{milestone.currentKm} / {milestone.targetKm} km</span>
                   </div>
                   <div
-                    className="w-full h-2 bg-slate-800 rounded-full overflow-hidden"
+                    className="w-full h-2 bg-slate-800 dark:bg-slate-600 rounded-full overflow-hidden"
                     role="progressbar"
                     aria-valuenow={Math.round((milestone.currentKm / milestone.targetKm) * 100)}
                     aria-valuemin={0}
@@ -950,7 +947,7 @@ function DashboardInner() {
                     />
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1.5 tracking-wide">
-                    {Math.max(0, milestone.targetKm - milestone.currentKm)} km remaining
+                    {Math.max(0, milestone.targetKm - milestone.currentKm)} {t('kmRemaining')}
                   </p>
                 </div>
               </>
@@ -963,23 +960,23 @@ function DashboardInner() {
       <section id="recent-performance" aria-labelledby="perf-heading">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">Activity Feed</p>
-            <h2 id="perf-heading" className="font-extrabold text-xl tracking-tight text-slate-900">
-              RECENT PERFORMANCE
+            <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">{t('activityFeed')}</p>
+            <h2 id="perf-heading" className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-slate-100">
+              {t('recentPerformance').toUpperCase()}
             </h2>
           </div>
           <div className="flex items-center gap-3">
               {/* Strava connection status */}
               {stravaStatus.connected ? (
                 <div className="flex items-center gap-1">
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-sm">
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 px-2 py-1 rounded-sm">
                     <Link2 className="w-3 h-3" />
-                    {stravaStatus.athleteName ?? 'Strava'} Connected
+                    {stravaStatus.athleteName ?? 'Strava'} {t('stravaConnected')}
                   </span>
                   <button
                     onClick={handleDisconnectStrava}
-                    title="Disconnect Strava"
-                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors"
+                    title={t('disconnectStrava')}
+                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-sm transition-colors"
                   >
                     <Link2Off className="w-3.5 h-3.5" />
                   </button>
@@ -991,25 +988,25 @@ function DashboardInner() {
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest uppercase rounded-sm transition-colors"
                 >
                   <Link2 className="w-3 h-3" />
-                  Connect Strava
+                  {t('connectStrava')}
                 </a>
               )}
               <button
                 id="dashboard-log-manual-btn"
                 onClick={() => setShowManualModal(true)}
-                className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 dark:text-slate-400 hover:text-orange-600 uppercase transition-colors"
               >
                 <Activity className="w-3.5 h-3.5" aria-hidden="true" />
-                Log Manual
+                {t('logManual')}
               </button>
               <a
                 href="https://www.strava.com/athlete/training"
                 target="_blank"
                 rel="noopener noreferrer"
                 id="view-all-runs-btn"
-                className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 dark:text-slate-400 hover:text-orange-600 uppercase transition-colors"
               >
-                View on Strava
+                {t('viewOnStrava')}
                 <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               </a>
             </div>
@@ -1019,15 +1016,15 @@ function DashboardInner() {
           {recentLoading ? (
             <>
               {[1, 2].map(i => (
-                <div key={i} className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden animate-pulse">
-                  <div className="h-36 bg-slate-100" />
+                <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm overflow-hidden animate-pulse">
+                  <div className="h-36 bg-slate-100 dark:bg-slate-800" />
                   <div className="p-4 space-y-3">
-                    <div className="h-4 bg-slate-100 rounded w-3/4" />
-                    <div className="h-3 bg-slate-100 rounded w-1/2" />
-                    <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
-                      <div className="h-8 bg-slate-100 rounded" />
-                      <div className="h-8 bg-slate-100 rounded" />
-                      <div className="h-8 bg-slate-100 rounded" />
+                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+                    <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-1/2" />
+                    <div className="grid grid-cols-3 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded" />
+                      <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded" />
+                      <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded" />
                     </div>
                   </div>
                 </div>
@@ -1036,8 +1033,8 @@ function DashboardInner() {
           ) : recentUnified.length > 0 ? (
             recentUnified.map((item, i) => <UnifiedPerfCard key={item._key} item={item} index={i} />)
           ) : (
-            <div className="col-span-2 bg-white border border-dashed border-slate-200 rounded-sm p-8 text-center">
-              <p className="text-sm font-bold text-slate-500">No activities yet</p>
+            <div className="col-span-2 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 rounded-sm p-8 text-center">
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('noActivities')}</p>
               {stravaStatus.connected ? (
                 <p className="text-[11px] text-slate-400 mt-1">Log a manual activity or click &ldquo;Sync Now&rdquo; below to pull from Strava.</p>
               ) : (
@@ -1047,7 +1044,7 @@ function DashboardInner() {
                   className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest uppercase rounded-sm transition-colors"
                 >
                   <Link2 className="w-3 h-3" />
-                  Connect Strava to get started
+                  {t('connectStrava')}
                 </a>
               )}
             </div>
@@ -1057,16 +1054,16 @@ function DashboardInner() {
           <div
             id="run-card-cta"
             onClick={() => setShowManualModal(true)}
-            className="bg-white border-2 border-dashed border-slate-200 rounded-sm flex flex-col items-center justify-center p-8 gap-3 hover:border-orange-300 hover:bg-orange-50/30 transition-all duration-200 cursor-pointer group"
+            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-sm flex flex-col items-center justify-center p-8 gap-3 hover:border-orange-300 hover:bg-orange-50/30 dark:hover:bg-orange-950/30 transition-all duration-200 cursor-pointer group"
             role="button"
             aria-label="Log a new workout"
             tabIndex={0}
           >
-            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+            <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center group-hover:bg-orange-200 dark:group-hover:bg-orange-900 transition-colors">
               <Activity className="w-5 h-5 text-orange-600" aria-hidden="true" />
             </div>
             <div className="text-center">
-              <p className="font-bold text-slate-700 text-sm">Log a workout</p>
+              <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">Log a workout</p>
               <p className="text-xs text-slate-400 mt-0.5">Manually add or sync from Strava</p>
             </div>
           </div>
@@ -1086,11 +1083,11 @@ function DashboardInner() {
       {/* ── Gear Health ───────────────────────────────────────────── */}
       <section id="gear-health" aria-labelledby="gear-heading" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Gear Health card */}
-        <article className="bg-white border border-slate-200 rounded-sm shadow-sm p-5 lg:col-span-1" aria-label="Gear health overview">
+        <article className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm p-5 lg:col-span-1" aria-label="Gear health overview">
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">Equipment</p>
-              <h2 id="gear-heading" className="font-extrabold text-lg tracking-tight text-slate-900">GEAR HEALTH</h2>
+              <h2 id="gear-heading" className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-slate-100">GEAR HEALTH</h2>
             </div>
             <Footprints className="w-5 h-5 text-slate-400" aria-hidden="true" />
           </div>
@@ -1099,7 +1096,7 @@ function DashboardInner() {
             <div id="gear-primary-shoe">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="text-sm font-bold text-slate-800">{defaultGear.brandModel}</p>
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{defaultGear.brandModel}</p>
                   <p className="text-[11px] text-slate-400 font-mono mt-0.5">{defaultGear.startingMileage} km used</p>
                 </div>
                 <span className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm ${
@@ -1117,7 +1114,7 @@ function DashboardInner() {
                 <span className={`font-bold ${gearPct > 60 ? 'text-amber-600' : 'text-green-600'}`}>{gearPct}%</span>
               </div>
               <div
-                className="w-full h-3 bg-slate-100 rounded-sm overflow-hidden"
+                className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden"
                 role="progressbar"
                 aria-valuenow={gearPct}
                 aria-valuemin={0}
@@ -1150,7 +1147,7 @@ function DashboardInner() {
           <Link
             href="/gear"
             id="manage-gear-btn"
-            className="mt-5 w-full flex items-center justify-center gap-2 py-2 border border-slate-200 rounded-sm text-xs font-bold tracking-widest text-slate-600 hover:border-orange-500 hover:text-orange-600 hover:bg-orange-50 uppercase transition-all duration-150"
+            className="mt-5 w-full flex items-center justify-center gap-2 py-2 border border-slate-200 dark:border-slate-700 rounded-sm text-xs font-bold tracking-widest text-slate-600 dark:text-slate-400 hover:border-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 uppercase transition-all duration-150"
           >
             Manage gear
             <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1158,10 +1155,10 @@ function DashboardInner() {
         </article>
 
         {/* Training Insights card */}
-        <article id="training-insights" className="bg-white border border-slate-200 rounded-sm shadow-sm p-5 lg:col-span-2" aria-label="Training insights and recommendations">
+        <article id="training-insights" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm p-5 lg:col-span-2" aria-label="Training insights and recommendations">
           <div className="mb-4">
             <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">Analytics</p>
-            <h2 className="font-extrabold text-lg tracking-tight text-slate-900">TRAINING INSIGHTS</h2>
+            <h2 className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-slate-100">{t('trainingInsights').toUpperCase()}</h2>
           </div>
 
           <div className="mb-5">
@@ -1204,7 +1201,7 @@ function DashboardInner() {
                       <div className="w-full flex flex-col justify-end" style={{ height: '64px' }}>
                         <div
                           className={['w-full rounded-sm transition-all duration-300',
-                            isToday ? 'bg-orange-500' : pct === 0 ? 'bg-slate-100' : 'bg-slate-200',
+                            isToday ? 'bg-orange-500' : pct === 0 ? 'bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-700',
                           ].join(' ')}
                           style={{ height: `${Math.max(pct, pct > 0 ? 8 : 0)}%` }}
                           role="img"
@@ -1225,26 +1222,26 @@ function DashboardInner() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="bg-slate-50 rounded-sm p-3 flex items-start gap-3">
-              <div className="mt-0.5 w-7 h-7 bg-orange-100 rounded-sm flex items-center justify-center shrink-0">
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-sm p-3 flex items-start gap-3">
+              <div className="mt-0.5 w-7 h-7 bg-orange-100 dark:bg-orange-950 rounded-sm flex items-center justify-center shrink-0">
                 <TrendingUp className="w-4 h-4 text-orange-600" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Total Distance Logged</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Total Distance Logged</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                   {chartEntries.length > 0
                     ? `${chartEntries.reduce((s: number, e: NormalisedEntry) => s + e.distanceKm, 0).toFixed(1)} km across ${chartEntries.length} activities (Strava + manual).`
                     : 'No activities logged yet. Sync Strava or add a manual run.'}
                 </p>
               </div>
             </div>
-            <div className="bg-slate-50 rounded-sm p-3 flex items-start gap-3">
-              <div className="mt-0.5 w-7 h-7 bg-blue-50 rounded-sm flex items-center justify-center shrink-0">
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-sm p-3 flex items-start gap-3">
+              <div className="mt-0.5 w-7 h-7 bg-blue-50 dark:bg-blue-950 rounded-sm flex items-center justify-center shrink-0">
                 <Zap className="w-4 h-4 text-blue-500" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Sync Strava History</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Sync Strava History</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                   Pull your latest runs and update gear mileage automatically.
                 </p>
                 <button
@@ -1254,7 +1251,7 @@ function DashboardInner() {
                   className="mt-2 flex items-center gap-1 text-[10px] font-bold tracking-wider text-orange-600 hover:text-orange-700 uppercase disabled:opacity-50 transition-colors"
                 >
                   <Activity className="w-3 h-3" />
-                  {syncing ? 'Syncing…' : 'Sync Now'}
+                  {syncing ? t('syncing') : t('syncNow')}
                 </button>
               </div>
             </div>

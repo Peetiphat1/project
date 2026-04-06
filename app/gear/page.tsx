@@ -21,6 +21,7 @@ import {
   EditGearModal,
   type GearRecord,
 } from '@/app/components/Modals'
+import { useLanguage } from '@/lib/i18n'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type GearStatus = 'Active' | 'Default' | 'Retiring Soon' | 'Retired'
@@ -72,7 +73,7 @@ function WearBar({ pct, isDefault, status }: { pct: number; isDefault: boolean; 
         <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tread Wear</span>
         <span className={`font-mono text-xs font-bold ${isRetiring ? 'text-red-500' : 'text-slate-700'}`}>{pct}%</span>
       </div>
-      <div className="w-full h-2.5 bg-slate-100 rounded-sm overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <div className={`h-full ${barColor} rounded-sm relative overflow-hidden transition-all duration-700`} style={{ width: `${pct}%` }}>
           {[...Array(10)].map((_, i) => (
             <div key={i} className="absolute top-0 bottom-0 w-px bg-black/10" style={{ left: `${(i + 1) * 10}%` }} aria-hidden="true" />
@@ -117,15 +118,15 @@ function GearCard({ shoe, onEdit, onSetDefault }: { shoe: Shoe; onEdit: (s: Shoe
     <article
       id={`gear-card-${shoe.id}`}
       className={[
-        'bg-white border rounded-sm shadow-sm overflow-hidden flex flex-col transition-shadow hover:shadow-md',
-        isDefault ? 'border-orange-300 ring-1 ring-orange-100' : 'border-slate-200',
+        'bg-white dark:bg-slate-900 border rounded-sm shadow-sm overflow-hidden flex flex-col transition-shadow hover:shadow-md',
+        isDefault ? 'border-orange-300 dark:border-orange-800 ring-1 ring-orange-100 dark:ring-orange-900' : 'border-slate-200 dark:border-slate-800',
       ].join(' ')}
     >
       <div className="relative">
         <ShoeIllustration color={isDefault ? '#ea580c' : '#3b82f6'} imageUrl={shoe.imageUrl} />
         <button
           onClick={() => onEdit(shoe)}
-          className="absolute top-2 left-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-sm border border-slate-200 text-slate-500 hover:text-orange-600 hover:border-orange-300 transition-all shadow-sm"
+          className="absolute top-2 left-2 p-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-sm border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-orange-600 hover:border-orange-300 transition-all shadow-sm"
         >
           <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
@@ -134,27 +135,27 @@ function GearCard({ shoe, onEdit, onSetDefault }: { shoe: Shoe; onEdit: (s: Shoe
       <div className="p-4 flex flex-col gap-3 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="font-extrabold text-slate-900 text-base leading-tight mt-1">{shoe.brandModel}</h2>
+            <h2 className="font-extrabold text-slate-900 dark:text-slate-100 text-base leading-tight mt-1">{shoe.brandModel}</h2>
           </div>
           <StatusTag status={shoe.status} isDefault={isDefault} />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-[#F5F5F3] rounded-sm p-2.5 flex flex-col gap-0.5">
+          <div className="bg-[#F5F5F3] dark:bg-slate-800 rounded-sm p-2.5 flex flex-col gap-0.5">
             <span className="flex items-center gap-1 text-[9px] font-bold tracking-widest text-slate-400 uppercase">
               <Footprints className="w-2.5 h-2.5" />
               Logged
             </span>
-            <span className="font-mono text-lg font-bold text-slate-900 tabular-nums">
+            <span className="font-mono text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
               {currentMileage}<span className="text-xs text-slate-400 ml-0.5">km</span>
             </span>
           </div>
-          <div className="bg-[#F5F5F3] rounded-sm p-2.5 flex flex-col gap-0.5">
+          <div className="bg-[#F5F5F3] dark:bg-slate-800 rounded-sm p-2.5 flex flex-col gap-0.5">
             <span className="flex items-center gap-1 text-[9px] font-bold tracking-widest text-slate-400 uppercase">
               <BarChart2 className="w-2.5 h-2.5" />
               Remaining
             </span>
-            <span className={`font-mono text-lg font-bold tabular-nums ${isRetiring ? 'text-red-600' : 'text-slate-900'}`}>
+            <span className={`font-mono text-lg font-bold tabular-nums ${isRetiring ? 'text-red-600' : 'text-slate-900 dark:text-slate-100'}`}>
               {remaining}<span className="text-xs text-slate-400 ml-0.5">km</span>
             </span>
           </div>
@@ -172,7 +173,7 @@ function GearCard({ shoe, onEdit, onSetDefault }: { shoe: Shoe; onEdit: (s: Shoe
 
         <WearBar pct={pctUsed} status={shoe.status} isDefault={isDefault} />
 
-        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Acquired {shoe.dateAcquired}</span>
         </div>
 
@@ -198,8 +199,8 @@ function GearCard({ shoe, onEdit, onSetDefault }: { shoe: Shoe; onEdit: (s: Shoe
 function RetiredCard({ shoe }: { shoe: Shoe }) {
   const currentMileage = shoe.startingMileage || shoe.mileage || 0
   return (
-    <article className="bg-white/60 border border-slate-200/70 rounded-sm p-4 flex items-center gap-4 opacity-70 hover:opacity-90 transition-opacity">
-      <div className="w-20 h-14 bg-slate-100 rounded-sm flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
+    <article className="bg-white/60 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800 rounded-sm p-4 flex items-center gap-4 opacity-70 hover:opacity-90 transition-opacity">
+      <div className="w-20 h-14 bg-slate-100 dark:bg-slate-800 rounded-sm flex items-center justify-center shrink-0 overflow-hidden" aria-hidden="true">
         <svg viewBox="0 0 200 100" className="w-16 h-10">
           <path d="M 20 85 Q 18 55 40 50 L 110 42 Q 140 38 160 48 Q 180 55 185 70 L 188 85 Z" fill="#94a3b8" opacity="0.5" />
           <path d="M 18 85 Q 18 92 30 93 L 180 93 Q 192 92 188 85 Z" fill="#cbd5e1" opacity="0.5" />
@@ -207,11 +208,11 @@ function RetiredCard({ shoe }: { shoe: Shoe }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-bold tracking-wider text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
+          <span className="text-[10px] font-bold tracking-wider text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
             <Archive className="w-2.5 h-2.5" /> RETIRED
           </span>
         </div>
-        <h3 className="font-bold text-slate-500 text-sm mt-0.5">{shoe.brandModel}</h3>
+        <h3 className="font-bold text-slate-500 dark:text-slate-400 text-sm mt-0.5">{shoe.brandModel}</h3>
         <div className="flex items-center gap-4 mt-1.5">
           <span className="flex items-center gap-1 text-[10px] font-mono text-slate-400"><Footprints className="w-3 h-3" />{currentMileage} km lifetime</span>
           <span className="flex items-center gap-1 text-[10px] font-mono text-slate-400"><Calendar className="w-3 h-3" />{shoe.dateAcquired}</span>
@@ -232,10 +233,11 @@ export default function GearPage() {
 
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<GearRecord | null>(null)
+  const { t } = useLanguage()
 
   const fetchGear = async () => {
     try {
-      const res = await fetch('/api/gear')
+      const res = await fetch('/api/gear', { cache: 'no-store' })
       if (res.ok) setGear(await res.json())
     } catch {
       console.error('Failed to fetch gear')
@@ -269,7 +271,7 @@ export default function GearPage() {
         <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-1">Equipment Manager</p>
-            <h1 className="font-extrabold tracking-tight text-4xl sm:text-5xl text-slate-900 leading-none">MY GEAR</h1>
+            <h1 className="font-extrabold tracking-tight text-4xl sm:text-5xl text-slate-900 dark:text-slate-100 leading-none">{t('myGear').toUpperCase()}</h1>
             <p className="mt-2 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
               {isLoading ? '...' : `${activeShoes.length} Active Pairs · ${totalKm.toLocaleString()} km Logged`}
             </p>
@@ -294,11 +296,11 @@ export default function GearPage() {
         </section>
 
         {retiredShoes.length > 0 && (
-          <section className="border-t border-slate-200 pt-8">
+          <section className="border-t border-slate-200 dark:border-slate-800 pt-8">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[10px] font-bold tracking-[0.25em] text-slate-400 uppercase mb-1">Archive</p>
-                <h2 className="font-extrabold text-xl tracking-tight text-slate-400">RETIRED PERFORMANCE VAULT</h2>
+                <h2 className="font-extrabold text-xl tracking-tight text-slate-400 dark:text-slate-500">RETIRED PERFORMANCE VAULT</h2>
               </div>
               <Archive className="w-5 h-5 text-slate-300" />
             </div>

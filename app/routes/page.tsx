@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ManualActivityModal, EditActivityModal, type ActivityRecordInput } from '@/app/components/Modals'
+import { useLanguage } from '@/lib/i18n'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ function MiniPolyline({ polyline, routeName }: { polyline: string; routeName: st
   const decoded = decodePolylineToSVG(polyline, W, H, 8)
 
   return (
-    <div className="relative h-20 bg-slate-50 rounded-sm overflow-hidden">
+    <div className="relative h-20 bg-slate-50 dark:bg-slate-800 rounded-sm overflow-hidden">
       <svg className="absolute inset-0 w-full h-full opacity-20" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
         {[20, 40, 60].map((y) => <line key={y} x1="0" y1={y} x2={W} y2={y} stroke="#94a3b8" strokeWidth="0.5" />)}
         {[46, 92, 138, 184].map((x) => <line key={x} x1={x} y1="0" x2={x} y2={H} stroke="#94a3b8" strokeWidth="0.5" />)}
@@ -181,7 +182,7 @@ function LargePolyline({ activity }: { activity: StravaActivity }) {
 
   return (
     <div
-      className="relative bg-slate-100 rounded-sm overflow-hidden"
+      className="relative bg-slate-100 dark:bg-slate-800 rounded-sm overflow-hidden"
       style={{ height: '340px' }}
       role="img"
       aria-label={`Detailed map for ${activity.name}`}
@@ -235,13 +236,13 @@ function StatBox({
   id: string; icon: React.ElementType; label: string; value: string; sub: string
 }) {
   return (
-    <div id={id} className="bg-[#F5F5F3] border border-slate-200 rounded-sm p-3 flex flex-col gap-1">
+    <div id={id} className="bg-[#F5F5F3] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm p-3 flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
         <Icon className="w-3.5 h-3.5 text-orange-500" aria-hidden="true" />
-        <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{label}</span>
+        <span className="text-[10px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">{label}</span>
       </div>
-      <span className="font-mono text-xl font-bold text-slate-900 tabular-nums leading-tight">{value}</span>
-      <span className="text-[10px] text-slate-500 tracking-wide">{sub}</span>
+      <span className="font-mono text-xl font-bold text-slate-900 dark:text-slate-100 tabular-nums leading-tight">{value}</span>
+      <span className="text-[10px] text-slate-500 dark:text-slate-400 tracking-wide">{sub}</span>
     </div>
   )
 }
@@ -285,10 +286,10 @@ function ActivityCard({
       id={`activity-card-${activity._key}`}
       onClick={onClick}
       className={[
-        'bg-white border rounded-sm p-4 cursor-pointer transition-all duration-150 hover:shadow-md',
+        'bg-white dark:bg-slate-900 border rounded-sm p-4 cursor-pointer transition-all duration-150 hover:shadow-md',
         isSelected
-          ? 'border-orange-500 shadow-md ring-1 ring-orange-200 bg-orange-50/30'
-          : 'border-slate-200 shadow-sm hover:border-slate-300',
+          ? 'border-orange-500 shadow-md ring-1 ring-orange-200 dark:ring-orange-900 bg-orange-50/30 dark:bg-orange-950/20'
+          : 'border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700',
       ].join(' ')}
       aria-label={`Activity: ${activity.name}`}
       aria-selected={isSelected}
@@ -296,7 +297,7 @@ function ActivityCard({
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-slate-900 text-sm truncate">{activity.name}</h3>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{activity.name}</h3>
             {isStrava && activity.achievementCount > 0 && (
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" aria-label="Achievement" />
             )}
@@ -310,8 +311,8 @@ function ActivityCard({
           <span className={[
             'text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded-sm',
             isStrava
-              ? 'bg-orange-50 text-orange-700 border border-orange-200'
-              : 'bg-slate-100 text-slate-500 border border-slate-200',
+              ? 'bg-orange-50 dark:bg-orange-950 text-orange-700 border border-orange-200 dark:border-orange-900'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700',
           ].join(' ')}>
             {activity.typeLabel.toUpperCase()}
           </span>
@@ -347,7 +348,7 @@ function ActivityCard({
       <div className="mt-3 flex items-center justify-between">
         <span className={[
           'flex items-center gap-1 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm',
-          isStrava ? 'text-slate-500 bg-slate-100' : 'text-blue-600 bg-blue-50',
+          isStrava ? 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800' : 'text-blue-600 bg-blue-50 dark:bg-blue-950',
         ].join(' ')}>
           <Activity className="w-3 h-3" aria-hidden="true" />
           {isStrava ? 'STRAVA SYNCED' : 'MANUAL LOG'}
@@ -359,14 +360,14 @@ function ActivityCard({
             <button
               onClick={onEdit}
               aria-label={`Edit ${activity.name}`}
-              className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+              className="p-1.5 rounded-sm text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 transition-colors"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
               aria-label={`Delete ${activity.name}`}
-              className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -380,17 +381,17 @@ function ActivityCard({
 
 function SkeletonCard() {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm p-4 animate-pulse">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm p-4 animate-pulse">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 space-y-1.5">
-          <div className="h-3.5 bg-slate-100 rounded w-2/3" />
-          <div className="h-2.5 bg-slate-100 rounded w-1/2" />
+          <div className="h-3.5 bg-slate-100 dark:bg-slate-800 rounded w-2/3" />
+          <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-1/2" />
         </div>
-        <div className="h-5 w-12 bg-slate-100 rounded ml-2" />
+        <div className="h-5 w-12 bg-slate-100 dark:bg-slate-800 rounded ml-2" />
       </div>
-      <div className="h-20 bg-slate-100 rounded-sm" />
+      <div className="h-20 bg-slate-100 dark:bg-slate-800 rounded-sm" />
       <div className="mt-3 grid grid-cols-3 gap-2">
-        {[1, 2, 3].map((i) => <div key={i} className="h-8 bg-slate-100 rounded" />)}
+        {[1, 2, 3].map((i) => <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded" />)}
       </div>
     </div>
   )
@@ -406,6 +407,7 @@ export default function RoutesPage() {
   const [isManualOpen, setIsManualOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ActivityRecordInput | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const { t } = useLanguage()
 
   /**
    * Fetch Strava history AND DB manual activities in parallel.
@@ -417,8 +419,8 @@ export default function RoutesPage() {
     setError(null)
     try {
       const [stravaRes, actRes] = await Promise.all([
-        fetch('/api/strava/history?per_page=50').catch(() => null),
-        fetch('/api/activities').catch(() => null),
+        fetch('/api/strava/history?per_page=50', { cache: 'no-store' }).catch(() => null),
+        fetch('/api/activities', { cache: 'no-store' }).catch(() => null),
       ])
 
       const unified: UnifiedActivity[] = []
@@ -505,8 +507,8 @@ export default function RoutesPage() {
           <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-1">
             Activity History
           </p>
-          <h1 className="font-extrabold tracking-tight text-4xl sm:text-5xl text-slate-900 leading-none">
-            MY ROUTES
+          <h1 className="font-extrabold tracking-tight text-4xl sm:text-5xl text-slate-900 dark:text-slate-100 leading-none">
+            {t('myRoutes').toUpperCase()}
           </h1>
           <p className="mt-2 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
             {isLoading ? 'Syncing…' : error ? 'Sync failed' : `${activities.length} Activities`}
@@ -518,7 +520,7 @@ export default function RoutesPage() {
             id="routes-refresh-btn"
             onClick={fetchHistory}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 bg-white rounded-sm hover:border-slate-300 transition-colors shadow-sm uppercase disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-widest text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-sm hover:border-slate-300 transition-colors shadow-sm uppercase disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
             Refresh
@@ -526,7 +528,7 @@ export default function RoutesPage() {
           <button
             id="log-manual-activity-btn"
             onClick={() => setIsManualOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 bg-white rounded-sm hover:border-orange-400 hover:text-orange-600 transition-colors shadow-sm uppercase"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-widest text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-sm hover:border-orange-400 hover:text-orange-600 transition-colors shadow-sm uppercase"
           >
             <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             Log Manual
@@ -546,11 +548,11 @@ export default function RoutesPage() {
 
       {/* ── Error banner (non-fatal) ─────────────────────────────── */}
       {error && (
-        <div className="mb-5 bg-red-50 border border-red-200 rounded-sm px-4 py-3 flex items-start gap-2">
+        <div className="mb-5 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-sm px-4 py-3 flex items-start gap-2">
           <span className="text-red-500 font-bold text-xs mt-0.5">!</span>
           <div>
-            <p className="text-xs font-bold text-red-700">Sync error</p>
-            <p className="text-[11px] text-red-500 mt-0.5">{error}</p>
+            <p className="text-xs font-bold text-red-700 dark:text-red-400">Sync error</p>
+            <p className="text-[11px] text-red-500 dark:text-red-400 mt-0.5">{error}</p>
             <p className="text-[11px] text-red-400 mt-1">
               Add <code className="bg-red-100 px-1 rounded">STRAVA_REFRESH_TOKEN</code> to your{' '}
               <code className="bg-red-100 px-1 rounded">.env</code> and visit{' '}
@@ -573,11 +575,11 @@ export default function RoutesPage() {
             {isLoading && [1, 2, 3].map((i) => <SkeletonCard key={i} />)}
 
             {!isLoading && activities.length === 0 && (
-              <div className="p-6 bg-white border border-slate-200 rounded-sm text-center">
-                <Activity className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm font-bold text-slate-500">No activities found</p>
+              <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm text-center">
+                <Activity className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('noActivities')}</p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Connect Strava or log a manual activity to get started.
+                  {t('connectStrava')} or {t('logManual').toLowerCase()} to get started.
                 </p>
               </div>
             )}

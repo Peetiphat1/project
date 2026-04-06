@@ -72,7 +72,7 @@ function ModalShell({
     /* Backdrop */
     <div
       id={`${id}-backdrop`}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       role="presentation"
     >
@@ -82,7 +82,7 @@ function ModalShell({
         role="dialog"
         aria-modal="true"
         className={[
-          'relative w-full bg-white border border-slate-200 rounded-sm shadow-2xl',
+          'relative w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-2xl',
           'flex flex-col max-h-[90vh] overflow-hidden',
           width,
         ].join(' ')}
@@ -106,12 +106,12 @@ function ModalHeader({
   rightSlot?: React.ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-slate-100">
+    <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
       <div>
         <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-0.5">
           {label}
         </p>
-        <h2 className="font-extrabold tracking-tight text-slate-900 text-xl leading-tight">
+        <h2 className="font-extrabold tracking-tight text-slate-900 dark:text-slate-100 text-xl leading-tight">
           {title}
         </h2>
       </div>
@@ -120,7 +120,7 @@ function ModalHeader({
         <button
           onClick={onClose}
           aria-label="Close modal"
-          className="p-1.5 rounded-sm text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          className="p-1.5 rounded-sm text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -141,7 +141,7 @@ function ModalBody({ children }: { children: React.ReactNode }) {
 /** Sticky footer row. */
 function ModalFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 bg-[#F5F5F3]">
+    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2 bg-[#F5F5F3] dark:bg-slate-800">
       {children}
     </div>
   )
@@ -190,10 +190,10 @@ function FieldWrapper({
 }
 
 const inputBaseClass =
-  'w-full px-3 py-2.5 text-sm bg-[#F5F5F3] border rounded-sm text-slate-800 ' +
-  'placeholder:text-slate-400 focus:outline-none focus:ring-1 transition-colors'
+  'w-full px-3 py-2.5 text-sm bg-[#F5F5F3] dark:bg-slate-800 border rounded-sm text-slate-800 dark:text-slate-200 ' +
+  'placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-colors'
 
-const inputOk = 'border-slate-200 focus:ring-orange-500 focus:border-orange-500'
+const inputOk = 'border-slate-200 dark:border-slate-700 focus:ring-orange-500 focus:border-orange-500'
 const inputErr = 'border-red-400 bg-red-50/30 focus:ring-red-500 focus:border-red-500'
 
 function TextInput({

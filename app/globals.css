@@ -1,18 +1,34 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:is(.dark *));
+
 @theme inline {
   --font-sans: var(--font-inter);
   --font-mono: var(--font-space-grotesk);
 }
 
+/* ── Light mode variables ──────────────────────────────────────────── */
 :root {
   --background: #F5F5F3;
   --foreground: #0f172a;
+  --card: #ffffff;
+  --card-border: #e2e8f0;
+  --muted: #64748b;
+}
+
+/* ── Dark mode variables (applied when <html class="dark">) ─────────── */
+.dark {
+  --background: #020617;   /* slate-950 */
+  --foreground: #f1f5f9;   /* slate-100 */
+  --card: #0f172a;         /* slate-900 */
+  --card-border: #1e293b;  /* slate-800 */
+  --muted: #94a3b8;        /* slate-400 */
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Smooth scrolling */
@@ -29,6 +45,10 @@ html {
   background: #f1f1f1;
 }
 
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #94a3b8;
   border-radius: 3px;
@@ -36,4 +56,16 @@ html {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #ea580c;
+}
+
+/* Smooth theme transitions for main UI elements */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* But NOT for animations like transforms/opacity — reset those */
+.animate-pulse, .transition-all, [class*="animate-"] {
+  transition: none;
 }
