@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
+import { getStravaCredentials, getAccessToken } from '@/lib/strava'
 
 export interface StravaActivity {
   id: number
@@ -24,7 +25,7 @@ interface WeeklyStats {
 function getWeekStart() {
   const now = new Date()
   const day = now.getDay() // 0=Sun
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1) // start Monday
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1)
   const monday = new Date(now)
   monday.setDate(diff)
   monday.setHours(0, 0, 0, 0)
@@ -36,11 +37,9 @@ function calcWeeklyStats(activities: StravaActivity[]): WeeklyStats {
   const thisWeek = activities.filter(
     (a) => a.type === 'Run' && new Date(a.start_date) >= weekStart
   )
-
   const totalMetres = thisWeek.reduce((s, a) => s + a.distance, 0)
   const totalSecs = thisWeek.reduce((s, a) => s + a.moving_time, 0)
   const weeklyKm = (totalMetres / 1000).toFixed(1)
-
   let avgPace = '—'
   if (totalMetres > 0) {
     const secPerKm = totalSecs / (totalMetres / 1000)
@@ -48,42 +47,20 @@ function calcWeeklyStats(activities: StravaActivity[]): WeeklyStats {
     const sec = Math.round(secPerKm % 60)
     avgPace = `${min}:${sec.toString().padStart(2, '0')}`
   }
-
   return { weeklyKm, avgPace, runCount: thisWeek.length }
 }
 
-async function getAccessToken(clientId: string, clientSecret: string, refreshToken: string) {
-  const res = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  })
-  if (!res.ok) throw new Error(`Token exchange failed: ${await res.text()}`)
-  const data = await res.json()
-  return data.access_token as string
-}
-
 export async function GET(req: Request) {
-  const clientId = process.env.STRAVA_CLIENT_ID
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET
-  const refreshToken = process.env.STRAVA_REFRESH_TOKEN
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    return NextResponse.json({ error: 'Strava credentials not configured' }, { status: 503 })
+  const creds = await getStravaCredentials()
+  if (!creds) {
+    return NextResponse.json({ error: 'Strava not connected', notConnected: true }, { status: 503 })
   }
 
   const url = new URL(req.url)
-  const mode = url.searchParams.get('mode') // 'recent' | 'weekly' | undefined
+  const mode = url.searchParams.get('mode')
 
   try {
-    const access_token = await getAccessToken(clientId, clientSecret, refreshToken)
-
-    // Fetch enough activities to cover current week + 2 display cards
+    const access_token = await getAccessToken(creds)
     const perPage = mode === 'weekly' ? 30 : 10
     const activitiesRes = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}`,

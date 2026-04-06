@@ -58,3 +58,27 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'Failed to update milestone' }, { status: 500 })
   }
 }
+// ── DELETE /api/milestone ──────────────────────────────────────────────────
+/**
+ * Resets the milestone progress to 0 by deleting ALL Activity rows
+ * (both Strava-synced and manual). The milestone target/title is preserved.
+ *
+ * NOTE: This cannot "subtract" mileage selectively — it wipes the activity
+ * log entirely. A future improvement could store mileage separately.
+ */
+export async function DELETE() {
+  try {
+    const milestone = await prisma.milestone.findFirst({ orderBy: { createdAt: 'asc' } })
+    if (!milestone) {
+      return NextResponse.json({ error: 'No milestone found' }, { status: 404 })
+    }
+
+    // Delete all activities so the aggregate resets to 0
+    await prisma.activity.deleteMany({})
+
+    return NextResponse.json({ ...milestone, currentKm: 0 })
+  } catch (err) {
+    console.error('[DELETE /api/milestone]', err)
+    return NextResponse.json({ error: 'Failed to reset milestone' }, { status: 500 })
+  }
+}

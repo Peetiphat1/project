@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Sun,
@@ -23,6 +24,10 @@ import {
   Pencil,
   Check,
   X,
+  RotateCcw,
+  Link2,
+  Link2Off,
+  Trash2,
 } from 'lucide-react'
 import { ManualActivityModal } from '@/app/components/Modals'
 
@@ -460,9 +465,11 @@ function UnifiedPerfCard({ item, index }: { item: RecentItem; index: number }) {
   )
 }
 
+import { Suspense } from 'react'
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
-export default function DashboardPage() {
+function DashboardInner() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [defaultGear, setDefaultGear] = useState<GearData | null>(null)
   const [recentUnified, setRecentUnified] = useState<RecentItem[]>([])
@@ -472,6 +479,18 @@ export default function DashboardPage() {
   const [chartEntries, setChartEntries] = useState<NormalisedEntry[]>([])
   const [syncing, setSyncing] = useState(false)
   const [showManualModal, setShowManualModal] = useState(false)
+
+  // ── Strava connection status ─────────────────────────────────────
+  const [stravaStatus, setStravaStatus] = useState<{
+    connected: boolean
+    athleteName: string | null
+  }>({ connected: false, athleteName: null })
+  const [stravaBanner, setStravaBanner] = useState<{
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
+
+  const searchParams = useSearchParams()
 
   // ── Milestone (DB) ──────────────────────────────────────────────
   const [milestone, setMilestone] = useState<Milestone>({
@@ -500,6 +519,27 @@ export default function DashboardPage() {
       }
     } catch { /* noop */ }
     setMilestoneEditing(false)
+  }
+
+  /** Reset progress to 0 by wiping all Activity rows, then open edit mode for new goal */
+  const [resetting, setResetting] = useState(false)
+  async function resetMilestone() {
+    if (!window.confirm('Reset all activity progress to 0? This will delete all logged activities from the database.'))
+      return
+    setResetting(true)
+    try {
+      const res = await fetch('/api/milestone', { method: 'DELETE' })
+      if (res.ok) {
+        const data = await res.json()
+        setMilestone(data)   // currentKm is now 0
+        setChartEntries([])  // clear chart
+        setWeeklyStats(null)
+        setRecentUnified([])
+        // Open edit so the user can immediately set a new goal
+        setMilestoneForm({ title: data.title, targetKm: String(data.targetKm) })
+        setMilestoneEditing(true)
+      }
+    } catch { /* noop */ } finally { setResetting(false) }
   }
 
   /**
@@ -623,9 +663,55 @@ export default function DashboardPage() {
       .then((data: Milestone) => setMilestone(data))
       .catch(() => {})
 
+    // Fetch Strava connection status
+    fetch('/api/strava/status')
+      .then(r => r.ok ? r.json() : { connected: false, athleteName: null })
+      .then((s: { connected: boolean; athleteName?: string | null }) =>
+        setStravaStatus({ connected: s.connected, athleteName: s.athleteName ?? null })
+      )
+      .catch(() => {})
+
     // Unified recent performance fetch
     fetchRecentPerformance()
   }, [])
+
+  // ── Read OAuth redirect params ───────────────────────────────────────
+  useEffect(() => {
+    const connected = searchParams.get('strava_connected')
+    const errParam  = searchParams.get('strava_error')
+    if (connected) {
+      setStravaStatus({ connected: true, athleteName: connected })
+      setStravaBanner({ type: 'success', message: `✅ Strava connected as ${connected}! Your activities will now sync.` })
+      // Remove query params without reload
+      window.history.replaceState({}, '', '/')
+      fetchRecentPerformance()
+    } else if (errParam) {
+      const msg: Record<string, string> = {
+        credentials_missing: 'STRAVA_CLIENT_ID / SECRET are not set in .env.',
+        token_exchange_failed: 'Strava token exchange failed. Try connecting again.',
+        no_code: 'Strava authorization was cancelled.',
+        internal_error: 'An internal error occurred during Strava auth.',
+      }
+      setStravaBanner({ type: 'error', message: `❌ ${msg[errParam] ?? errParam}` })
+      window.history.replaceState({}, '', '/')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // ── Handle Strava Disconnect ────────────────────────────────────────
+  async function handleDisconnectStrava() {
+    if (!window.confirm('Disconnect your Strava account? You will need to log in again to sync new activities.')) return
+    
+    try {
+      const res = await fetch('/api/strava/status', { method: 'DELETE' })
+      if (res.ok) {
+        setStravaStatus({ connected: false, athleteName: null })
+        setStravaBanner({ type: 'success', message: 'Strava disconnected successfully.' })
+        // Clear Strava items from recent
+        setRecentUnified(prev => prev.filter(item => item._src !== 'strava'))
+      }
+    } catch { /* noop */ }
+  }
 
   // ── Handle Strava Sync button ───────────────────────────────────────
   async function handleStravaSync() {
@@ -657,6 +743,28 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+      {/* ── Strava connection banner (success / error) ─────────── */}
+      {stravaBanner && (
+        <div
+          role="alert"
+          className={[
+            'flex items-center justify-between gap-3 px-4 py-3 rounded-sm border text-sm font-bold',
+            stravaBanner.type === 'success'
+              ? 'bg-green-50 border-green-300 text-green-800'
+              : 'bg-red-50 border-red-300 text-red-800',
+          ].join(' ')}
+        >
+          <span>{stravaBanner.message}</span>
+          <button
+            onClick={() => setStravaBanner(null)}
+            aria-label="Dismiss"
+            className="shrink-0 p-1 rounded-sm hover:bg-black/10 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* ── Hero header + top widgets ─────────────────────────── */}
       <section
         id="dashboard-hero"
@@ -766,8 +874,20 @@ export default function DashboardPage() {
           >
             <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Next Milestone</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Trophy className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                {/* Reset progress button */}
+                <button
+                  id="milestone-reset-btn"
+                  onClick={resetMilestone}
+                  disabled={resetting}
+                  aria-label="Reset milestone progress"
+                  title="Reset all progress to 0"
+                  className="p-1 rounded-sm text-slate-500 hover:text-red-400 transition-colors disabled:opacity-40"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                {/* Edit goal button */}
                 <button
                   id="milestone-edit-btn"
                   onClick={openMilestoneEdit}
@@ -849,25 +969,50 @@ export default function DashboardPage() {
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              id="dashboard-log-manual-btn"
-              onClick={() => setShowManualModal(true)}
-              className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
-            >
-              <Activity className="w-3.5 h-3.5" aria-hidden="true" />
-              Log Manual
-            </button>
-            <a
-              href="https://www.strava.com/athlete/training"
-              target="_blank"
-              rel="noopener noreferrer"
-              id="view-all-runs-btn"
-              className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
-            >
-              View on Strava
-              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-            </a>
-          </div>
+              {/* Strava connection status */}
+              {stravaStatus.connected ? (
+                <div className="flex items-center gap-1">
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-sm">
+                    <Link2 className="w-3 h-3" />
+                    {stravaStatus.athleteName ?? 'Strava'} Connected
+                  </span>
+                  <button
+                    onClick={handleDisconnectStrava}
+                    title="Disconnect Strava"
+                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors"
+                  >
+                    <Link2Off className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="/api/strava/login"
+                  id="connect-strava-btn"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest uppercase rounded-sm transition-colors"
+                >
+                  <Link2 className="w-3 h-3" />
+                  Connect Strava
+                </a>
+              )}
+              <button
+                id="dashboard-log-manual-btn"
+                onClick={() => setShowManualModal(true)}
+                className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
+              >
+                <Activity className="w-3.5 h-3.5" aria-hidden="true" />
+                Log Manual
+              </button>
+              <a
+                href="https://www.strava.com/athlete/training"
+                target="_blank"
+                rel="noopener noreferrer"
+                id="view-all-runs-btn"
+                className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-slate-500 hover:text-orange-600 uppercase transition-colors"
+              >
+                View on Strava
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </a>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -893,7 +1038,18 @@ export default function DashboardPage() {
           ) : (
             <div className="col-span-2 bg-white border border-dashed border-slate-200 rounded-sm p-8 text-center">
               <p className="text-sm font-bold text-slate-500">No activities yet</p>
-              <p className="text-[11px] text-slate-400 mt-1">Connect Strava or log a manual activity to get started.</p>
+              {stravaStatus.connected ? (
+                <p className="text-[11px] text-slate-400 mt-1">Log a manual activity or click &ldquo;Sync Now&rdquo; below to pull from Strava.</p>
+              ) : (
+                <a
+                  href="/api/strava/login"
+                  id="empty-connect-strava-btn"
+                  className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest uppercase rounded-sm transition-colors"
+                >
+                  <Link2 className="w-3 h-3" />
+                  Connect Strava to get started
+                </a>
+              )}
             </div>
           )}
 
@@ -1106,5 +1262,14 @@ export default function DashboardPage() {
         </article>
       </section>
     </div>
+  )
+}
+
+// Wrap in Suspense so useSearchParams() works without a static-render error
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardInner />
+    </Suspense>
   )
 }

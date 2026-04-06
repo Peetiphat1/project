@@ -64,3 +64,16 @@ model Milestone {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/// Stores Strava OAuth credentials saved via the web auth flow.
+/// Only one row is expected (singleton pattern).
+model UserSettings {
+  id                  String   @id @default(cuid())
+  stravaClientId      String?
+  stravaClientSecret  String?
+  stravaRefreshToken  String?
+  stravaAthleteId     String?
+  stravaAthleteName   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

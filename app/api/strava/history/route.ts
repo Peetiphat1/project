@@ -1,35 +1,13 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-
-async function getAccessToken(
-  clientId: string,
-  clientSecret: string,
-  refreshToken: string
-): Promise<string> {
-  const res = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  })
-  if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`)
-  const data = await res.json()
-  return data.access_token as string
-}
+import { getStravaCredentials, getAccessToken } from '@/lib/strava'
 
 export async function GET(req: Request) {
-  const clientId = process.env.STRAVA_CLIENT_ID
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET
-  const refreshToken = process.env.STRAVA_REFRESH_TOKEN
-
-  if (!clientId || !clientSecret || !refreshToken) {
+  const creds = await getStravaCredentials()
+  if (!creds) {
     return NextResponse.json(
-      { error: 'Strava credentials not configured in .env' },
+      { error: 'Strava not connected', notConnected: true },
       { status: 503 }
     )
   }
@@ -39,7 +17,7 @@ export async function GET(req: Request) {
   const page = url.searchParams.get('page') ?? '1'
 
   try {
-    const accessToken = await getAccessToken(clientId, clientSecret, refreshToken)
+    const accessToken = await getAccessToken(creds)
 
     const activitiesRes = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}&page=${page}`,
