@@ -14,7 +14,7 @@ model Route {
   terrain    String
   notes      String?
   isFavorite Boolean  @default(false)
-  
+
   // Fake props to support placeholder UI rendering smoothly
   location   String?  @default("Local route")
   surface    String?
@@ -36,7 +36,31 @@ model Gear {
   status          String   @default("Active")
   isDefault       Boolean  @default(false)
   imageUrl        String?
-  
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/// Unified activity log — Strava syncs AND manual entries.
+/// stravaId is set only for Strava activities; null = manual.
+model Activity {
+  id          String   @id @default(cuid())
+  stravaId    String?  @unique   // prevents double-sync
+  name        String
+  distanceKm  Float
+  durationSec Int      @default(0)
+  elevationM  Float    @default(0)
+  date        DateTime
+  isManual    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+}
+
+/// Stores the active milestone target. Only one row is expected.
+model Milestone {
+  id        String   @id @default(cuid())
+  title     String   @default("Lifetime Total")
+  targetKm  Float    @default(500)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -15,7 +15,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent } from 'react'
-import { routeSchema, gearSchema } from '@/lib/validations'
+import { routeSchema, gearSchema, manualActivitySchema } from '@/lib/validations'
 import {
   X,
   Trash2,
@@ -35,6 +35,9 @@ import {
   PlusCircle,
   ChevronDown,
   Info,
+  Activity,
+  Navigation,
+  Clock,
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1473,5 +1476,186 @@ export function ModalDemo() {
         />
       )}
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. MANUAL ACTIVITY MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function ManualActivityModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void
+  onSuccess?: () => void
+}) {
+  const today = new Date().toISOString().split('T')[0]
+  const [form, setForm] = useState({
+    name: '',
+    distanceKm: '',
+    durationMin: '',
+    durationSec: '',
+    elevationM: '',
+    date: today,
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitted, setSubmitted] = useState(false)
+  const [banner, setBanner] = useState<'success' | 'error' | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  function setField(field: string, value: string) {
+    setForm((f) => ({ ...f, [field]: value }))
+    if (submitted) setErrors((e) => ({ ...e, [field]: undefined as unknown as string }))
+  }
+
+  async function handleSubmit() {
+    setSubmitted(true)
+    const durationSec =
+      (parseInt(form.durationMin || '0', 10) * 60) +
+      parseInt(form.durationSec || '0', 10)
+
+    const payload = {
+      name: form.name,
+      distanceKm: parseFloat(form.distanceKm),
+      durationSec,
+      elevationM: parseFloat(form.elevationM || '0'),
+      date: form.date,
+    }
+
+    const result = manualActivitySchema.safeParse(payload)
+    if (!result.success) {
+      const errs: Record<string, string> = {}
+      result.error.issues.forEach((iss) => { errs[String(iss.path[0])] = iss.message })
+      setErrors(errs)
+      setBanner('error')
+      return
+    }
+    setErrors({})
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result.data),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Server error')
+      }
+      setBanner('success')
+      if (onSuccess) onSuccess()
+      setTimeout(onClose, 900)
+    } catch (err: unknown) {
+      console.error(err)
+      setBanner('error')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <ModalShell id="manual-activity-modal" onClose={onClose} width="max-w-lg">
+      <ModalHeader label="Activity Log" title="LOG MANUAL ACTIVITY" onClose={onClose} />
+
+      <ModalBody>
+        {/* Activity Name */}
+        <FieldWrapper htmlFor="ma-name" label="Activity Name" required error={errors.name}>
+          <TextInput
+            id="ma-name"
+            placeholder="Morning trail run"
+            value={form.name}
+            onChange={(v) => setField('name', v)}
+            error={errors.name}
+            icon={Activity}
+          />
+        </FieldWrapper>
+
+        {/* Distance */}
+        <FieldWrapper htmlFor="ma-distance" label="Distance (km)" required error={errors.distanceKm}
+          hint="Must be a positive number">
+          <TextInput
+            id="ma-distance"
+            placeholder="10.5"
+            value={form.distanceKm}
+            onChange={(v) => setField('distanceKm', v)}
+            error={errors.distanceKm}
+            icon={Navigation}
+            type="number"
+            min="0.1"
+            step="0.1"
+          />
+        </FieldWrapper>
+
+        {/* Duration row */}
+        <FieldWrapper htmlFor="ma-duration-min" label="Duration (optional)" error={errors.durationSec}>
+          <div className="grid grid-cols-2 gap-3">
+            <TextInput
+              id="ma-duration-min"
+              placeholder="45"
+              value={form.durationMin}
+              onChange={(v) => setField('durationMin', v)}
+              icon={Clock}
+              type="number"
+              min="0"
+            />
+            <TextInput
+              id="ma-duration-sec"
+              placeholder="30"
+              value={form.durationSec}
+              onChange={(v) => setField('durationSec', v)}
+              icon={Clock}
+              type="number"
+              min="0"
+              max="59"
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 font-mono -mt-1">Minutes / Seconds</p>
+        </FieldWrapper>
+
+        {/* Elevation */}
+        <FieldWrapper htmlFor="ma-elevation" label="Elevation Gain (m, optional)" error={errors.elevationM}>
+          <TextInput
+            id="ma-elevation"
+            placeholder="120"
+            value={form.elevationM}
+            onChange={(v) => setField('elevationM', v)}
+            icon={TrendingUp}
+            type="number"
+            min="0"
+          />
+        </FieldWrapper>
+
+        {/* Date */}
+        <FieldWrapper htmlFor="ma-date" label="Date" required error={errors.date}>
+          <TextInput
+            id="ma-date"
+            placeholder={today}
+            value={form.date}
+            onChange={(v) => setField('date', v)}
+            icon={Calendar}
+            type="date"
+          />
+        </FieldWrapper>
+
+        {/* Impact notice */}
+        <div className="flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-sm p-3">
+          <AlertCircle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-[11px] text-orange-700 font-bold leading-snug">
+            This activity will be added to your total distance log and will increase your default gear&apos;s mileage counter.
+          </p>
+        </div>
+
+        <SubmitBanner state={banner} />
+      </ModalBody>
+
+      <ModalFooter>
+        <GhostBtn id="ma-cancel-btn" onClick={onClose}>Cancel</GhostBtn>
+        <PrimaryBtn id="ma-save-btn" onClick={handleSubmit} disabled={syncing}>
+          <PlusCircle className="w-3.5 h-3.5" aria-hidden="true" />
+          {syncing ? 'Saving…' : 'Log Activity'}
+        </PrimaryBtn>
+      </ModalFooter>
+    </ModalShell>
   )
 }

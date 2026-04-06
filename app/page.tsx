@@ -73,9 +73,20 @@ interface WeeklyStats {
 }
 
 interface Milestone {
+  id: string
   title: string
   targetKm: number
   currentKm: number
+}
+
+interface ActivityRecord {
+  id: string
+  name: string
+  distanceKm: number
+  durationSec: number
+  elevationM: number
+  date: string
+  isManual: boolean
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -356,30 +367,35 @@ export default function DashboardPage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[] | null>(null)
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null)
   const [stravaLoading, setStravaLoading] = useState(true)
+  const [analyticsActivities, setAnalyticsActivities] = useState<ActivityRecord[]>([])
+  const [syncing, setSyncing] = useState(false)
 
-  // ── Milestone (localStorage) ──────────────────────────────────────────
-  const [milestone, setMilestone] = useState<Milestone>(() => {
-    if (typeof window === 'undefined') return { title: 'Lifetime Total', targetKm: 500, currentKm: 432 }
-    try {
-      const saved = localStorage.getItem('endurance_milestone')
-      return saved ? JSON.parse(saved) : { title: 'Lifetime Total', targetKm: 500, currentKm: 432 }
-    } catch { return { title: 'Lifetime Total', targetKm: 500, currentKm: 432 } }
+  // ── Milestone (DB) ──────────────────────────────────────────────
+  const [milestone, setMilestone] = useState<Milestone>({
+    id: '', title: 'Lifetime Total', targetKm: 500, currentKm: 0,
   })
   const [milestoneEditing, setMilestoneEditing] = useState(false)
-  const [milestoneForm, setMilestoneForm] = useState({ title: '', targetKm: '', currentKm: '' })
+  const [milestoneForm, setMilestoneForm] = useState({ title: '', targetKm: '' })
 
   function openMilestoneEdit() {
-    setMilestoneForm({ title: milestone.title, targetKm: String(milestone.targetKm), currentKm: String(milestone.currentKm) })
+    setMilestoneForm({ title: milestone.title, targetKm: String(milestone.targetKm) })
     setMilestoneEditing(true)
   }
-  function saveMilestone() {
-    const updated: Milestone = {
-      title: milestoneForm.title || milestone.title,
-      targetKm: Number(milestoneForm.targetKm) || milestone.targetKm,
-      currentKm: Number(milestoneForm.currentKm) || milestone.currentKm,
-    }
-    setMilestone(updated)
-    localStorage.setItem('endurance_milestone', JSON.stringify(updated))
+  async function saveMilestone() {
+    try {
+      const res = await fetch('/api/milestone', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: milestoneForm.title || milestone.title,
+          targetKm: Number(milestoneForm.targetKm) || milestone.targetKm,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMilestone(data)
+      }
+    } catch { /* noop */ }
     setMilestoneEditing(false)
   }
 
@@ -411,7 +427,39 @@ export default function DashboardPage() {
       })
       .catch(() => { setStravaActivities([]); setWeeklyStats(null) })
       .finally(() => setStravaLoading(false))
+
+    // Fetch activities for analytics chart
+    fetch('/api/activities')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: { activities: ActivityRecord[] }) => setAnalyticsActivities(data.activities))
+      .catch(() => {})
+
+    // Fetch milestone from DB
+    fetch('/api/milestone')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: Milestone) => setMilestone(data))
+      .catch(() => {})
   }, [])
+
+  // ── Handle Strava Sync button ───────────────────────────────────────
+  async function handleStravaSync() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/strava/sync', { method: 'POST' })
+      if (res.ok) {
+        // Refresh gear and milestone after sync
+        const [gearRes, msRes, actRes] = await Promise.all([
+          fetch('/api/gear').then(r => r.json()),
+          fetch('/api/milestone').then(r => r.json()),
+          fetch('/api/activities').then(r => r.json()),
+        ])
+        const def = (gearRes as GearData[]).find(g => g.isDefault) ?? (gearRes as GearData[])[0] ?? null
+        setDefaultGear(def)
+        setMilestone(msRes as Milestone)
+        setAnalyticsActivities((actRes as { activities: ActivityRecord[] }).activities)
+      }
+    } catch { /* noop */ } finally { setSyncing(false) }
+  }
 
   const gearPct = defaultGear
     ? Math.min(100, Math.round((defaultGear.startingMileage / defaultGear.targetLifespan) * 100))
@@ -556,24 +604,14 @@ export default function DashboardPage() {
                   value={milestoneForm.title}
                   onChange={e => setMilestoneForm(f => ({ ...f, title: e.target.value }))}
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    id="milestone-current-input"
-                    type="number"
-                    className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
-                    placeholder="Current km"
-                    value={milestoneForm.currentKm}
-                    onChange={e => setMilestoneForm(f => ({ ...f, currentKm: e.target.value }))}
-                  />
-                  <input
-                    id="milestone-target-input"
-                    type="number"
-                    className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
-                    placeholder="Target km"
-                    value={milestoneForm.targetKm}
-                    onChange={e => setMilestoneForm(f => ({ ...f, targetKm: e.target.value }))}
-                  />
-                </div>
+                <input
+                  id="milestone-target-input"
+                  type="number"
+                  className="bg-slate-800 border border-slate-700 rounded-sm px-2 py-1.5 text-white text-xs font-mono w-full outline-none focus:border-orange-500"
+                  placeholder="Target km"
+                  value={milestoneForm.targetKm}
+                  onChange={e => setMilestoneForm(f => ({ ...f, targetKm: e.target.value }))}
+                />
                 <div className="flex gap-2">
                   <button id="milestone-save-btn" onClick={saveMilestone} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold tracking-widest rounded-sm uppercase transition-colors">
                     <Check className="w-3 h-3" />Save
@@ -774,28 +812,46 @@ export default function DashboardPage() {
           <div className="mb-5">
             <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-3">Weekly Intensity Distribution</p>
             <div className="flex items-end gap-1.5 h-20">
-              {[
-                { day: 'M', pct: 55, active: false },
-                { day: 'T', pct: 80, active: false },
-                { day: 'W', pct: 40, active: false },
-                { day: 'T', pct: 65, active: false },
-                { day: 'F', pct: 90, active: true },
-                { day: 'S', pct: 30, active: false },
-                { day: 'S', pct: 0, active: false },
-              ].map(({ day, pct, active }, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full flex flex-col justify-end" style={{ height: '64px' }}>
-                    <div
-                      className={['w-full rounded-sm transition-all duration-300', active ? 'bg-orange-500' : pct === 0 ? 'bg-slate-100' : 'bg-slate-200'].join(' ')}
-                      style={{ height: `${pct}%` }}
-                      role="img"
-                      aria-label={`${day}: ${pct}% intensity`}
-                    />
-                  </div>
-                  <span className={['text-[10px] font-bold', active ? 'text-orange-600' : 'text-slate-400'].join(' ')}>{day}</span>
-                </div>
-              ))}
+              {(() => {
+                // Build last-7-days buckets from analyticsActivities
+                const today = new Date()
+                const days = Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(today)
+                  d.setDate(today.getDate() - (6 - i))
+                  return d
+                })
+                const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                const buckets = days.map((d) => {
+                  const key = d.toISOString().slice(0, 10)
+                  const total = analyticsActivities
+                    .filter((a) => a.date.slice(0, 10) === key)
+                    .reduce((s, a) => s + a.distanceKm, 0)
+                  return { day: dayLabels[d.getDay()], km: total, date: key }
+                })
+                const maxKm = Math.max(...buckets.map((b) => b.km), 1)
+                const todayKey = today.toISOString().slice(0, 10)
+                return buckets.map(({ day, km, date }, i) => {
+                  const pct = Math.round((km / maxKm) * 100)
+                  const isToday = date === todayKey
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${km.toFixed(1)} km`}>
+                      <div className="w-full flex flex-col justify-end" style={{ height: '64px' }}>
+                        <div
+                          className={['w-full rounded-sm transition-all duration-300', isToday ? 'bg-orange-500' : pct === 0 ? 'bg-slate-100' : 'bg-slate-200'].join(' ')}
+                          style={{ height: `${Math.max(pct, pct > 0 ? 8 : 0)}%` }}
+                          role="img"
+                          aria-label={`${day}: ${km.toFixed(1)} km`}
+                        />
+                      </div>
+                      <span className={['text-[10px] font-bold', isToday ? 'text-orange-600' : 'text-slate-400'].join(' ')}>{day}</span>
+                    </div>
+                  )
+                })
+              })()}
             </div>
+            {analyticsActivities.length === 0 && (
+              <p className="text-[10px] text-slate-400 text-center mt-2">Sync Strava or log a manual activity to populate this chart.</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -804,9 +860,11 @@ export default function DashboardPage() {
                 <TrendingUp className="w-4 h-4 text-orange-600" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Pace trending up</p>
+                <p className="text-xs font-bold text-slate-800">Total Distance Logged</p>
                 <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                  Your average pace improved by 8 sec/km over the last 30 days.
+                  {analyticsActivities.length > 0
+                    ? `${analyticsActivities.reduce((s, a) => s + a.distanceKm, 0).toFixed(1)} km across ${analyticsActivities.length} activities (Strava + manual).`
+                    : 'No activities logged yet. Sync Strava or add a manual run.'}
                 </p>
               </div>
             </div>
@@ -815,10 +873,19 @@ export default function DashboardPage() {
                 <Zap className="w-4 h-4 text-blue-500" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Recovery day recommended</p>
+                <p className="text-xs font-bold text-slate-800">Sync Strava History</p>
                 <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                  High load this week. Consider a rest day tomorrow before your long run.
+                  Pull your latest runs and update gear mileage automatically.
                 </p>
+                <button
+                  id="sync-strava-btn"
+                  onClick={handleStravaSync}
+                  disabled={syncing}
+                  className="mt-2 flex items-center gap-1 text-[10px] font-bold tracking-wider text-orange-600 hover:text-orange-700 uppercase disabled:opacity-50 transition-colors"
+                >
+                  <Activity className="w-3 h-3" />
+                  {syncing ? 'Syncing…' : 'Sync Now'}
+                </button>
               </div>
             </div>
           </div>

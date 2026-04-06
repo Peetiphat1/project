@@ -20,3 +20,13 @@ export const gearSchema = z.object({
 })
 
 export type GearInput = z.infer<typeof gearSchema>
+
+export const manualActivitySchema = z.object({
+  name: z.string().min(1, "Activity name is required"),
+  distanceKm: z.number().positive("Distance must be a positive number"),
+  durationSec: z.number().int().nonnegative("Duration cannot be negative").default(0),
+  elevationM: z.number().nonnegative().default(0),
+  date: z.string().min(1, "Date is required"),
+})
+
+export type ManualActivityInput = z.infer<typeof manualActivitySchema>

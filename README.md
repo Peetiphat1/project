@@ -20,7 +20,13 @@ Before you start, ensure you have the following installed on your machine (Appli
 
 ---
 
-## Initial Setup Guide
+## AI Auto-Setup (Recommended)
+
+If you are using an AI coding assistant like **Antigravity**, you can skip all manual steps! Just copy the `agent.md` file into the chat, and the agent will automatically parse the requirements, prompt you for API keys, sync the database, and spin up the development server for you.
+
+---
+
+## Manual Setup Guide
 
 ### 1. Clone & Install Dependencies
 First, clone the project and install the required npm packages:
