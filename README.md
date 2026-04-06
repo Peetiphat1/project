@@ -39,3 +39,29 @@ Follow these steps to get the project running locally on your machine:
 
 5. **Configure Strava API Keys in the UI**
    Once the app is running, open it in your browser locally (`http://localhost:3000`). Wait for the **Settings Modal** to appear, and enter your Strava **Client ID**, **Client Secret**, and **Refresh Token** directly via the UI. The application will store them in the database for dynamic retrieval.
+
+## Troubleshooting Common Clone Issues
+
+**1. `npm install` Error (`-4094` / `UNKNOWN: unknown error, open package-lock.json`)**
+This is often caused by package manager conflicts (using `npm` instead of `pnpm`) or stale lockfiles when cloning.
+- **Fix:** Use `pnpm install` if you have `pnpm` installed. Otherwise, delete the existing lockfile and reinstall cleanly:
+  ```bash
+  rm package-lock.json -f
+  rm node_modules -rf
+  npm cache clean --force
+  npm install
+  ```
+
+**2. Prisma Local Database Errors**
+If `npx prisma db push` fails, or Prisma complains that it cannot locate the database when starting up:
+- **Fix:** Ensure you have created the `.env.local` file in the root directory and that it contains exactly this line:
+  ```env
+  DATABASE_URL="file:./dev.db"
+  ```
+- Also, double-check that your `prisma/schema.prisma` file is pulling from that environment variable. The `datasource` block must be configured like this:
+  ```prisma
+  datasource db {
+    provider = "sqlite"
+    url      = env("DATABASE_URL")
+  }
+  ```
