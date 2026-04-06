@@ -418,20 +418,25 @@ export default function DashboardPage() {
       .then((routes: RouteData[]) => setRecentRoutes(routes.slice(0, 2)))
       .catch(() => {})
 
-    // Fetch Strava activities + weekly stats
+    // Fetch Strava activities (display only — 2 cards)
     fetch('/api/strava')
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: { activities: StravaActivity[]; weeklyStats: WeeklyStats }) => {
         setStravaActivities(data.activities)
-        setWeeklyStats(data.weeklyStats)
+        // Only use Strava weekly stats if DB hasn't loaded yet
+        setWeeklyStats(prev => prev ?? data.weeklyStats)
       })
-      .catch(() => { setStravaActivities([]); setWeeklyStats(null) })
+      .catch(() => { setStravaActivities([]) })
       .finally(() => setStravaLoading(false))
 
-    // Fetch activities for analytics chart
+    // Fetch DB activities — analytics chart + COMBINED weekly stats
     fetch('/api/activities')
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: { activities: ActivityRecord[] }) => setAnalyticsActivities(data.activities))
+      .then((data: { activities: ActivityRecord[]; weeklyStats: WeeklyStats }) => {
+        setAnalyticsActivities(data.activities)
+        // DB-sourced combined stats override Strava-only stats
+        if (data.weeklyStats) setWeeklyStats(data.weeklyStats)
+      })
       .catch(() => {})
 
     // Fetch milestone from DB
@@ -447,7 +452,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/strava/sync', { method: 'POST' })
       if (res.ok) {
-        // Refresh gear and milestone after sync
+        // Refresh gear, milestone, and activities (which includes combined weekly stats)
         const [gearRes, msRes, actRes] = await Promise.all([
           fetch('/api/gear').then(r => r.json()),
           fetch('/api/milestone').then(r => r.json()),
@@ -456,7 +461,9 @@ export default function DashboardPage() {
         const def = (gearRes as GearData[]).find(g => g.isDefault) ?? (gearRes as GearData[])[0] ?? null
         setDefaultGear(def)
         setMilestone(msRes as Milestone)
-        setAnalyticsActivities((actRes as { activities: ActivityRecord[] }).activities)
+        const actData = actRes as { activities: ActivityRecord[]; weeklyStats: WeeklyStats }
+        setAnalyticsActivities(actData.activities)
+        if (actData.weeklyStats) setWeeklyStats(actData.weeklyStats)
       }
     } catch { /* noop */ } finally { setSyncing(false) }
   }
@@ -813,37 +820,55 @@ export default function DashboardPage() {
             <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-3">Weekly Intensity Distribution</p>
             <div className="flex items-end gap-1.5 h-20">
               {(() => {
-                // Build last-7-days buckets from analyticsActivities
-                const today = new Date()
-                const days = Array.from({ length: 7 }, (_, i) => {
-                  const d = new Date(today)
-                  d.setDate(today.getDate() - (6 - i))
-                  return d
-                })
-                const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-                const buckets = days.map((d) => {
-                  const key = d.toISOString().slice(0, 10)
+                // Rolling 7-day window ending TODAY (today = index 6)
+                // All date maths in GMT+7 (Phuket) to match weekly stats
+                const TZ_OFFSET_MS = 7 * 60 * 60 * 1000
+                const nowLocalMs = Date.now() + TZ_OFFSET_MS
+
+                const buckets = Array.from({ length: 7 }, (_, i) => {
+                  // i=0 → 6 days ago, i=6 → today
+                  const offsetDays = i - 6
+                  const dayMs = nowLocalMs + offsetDays * 86_400_000
+                  const dayDate = new Date(dayMs)
+
+                  // 3-letter label from actual date — unambiguous (Mon, Tue, Wed…)
+                  const label = dayDate.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    timeZone: 'UTC', // dayMs is already shifted, treat as UTC
+                  }).slice(0, 3) // 'Monday' → 'Mon' (en-US gives abbreviated already)
+
+                  const key = dayDate.toISOString().slice(0, 10) // YYYY-MM-DD
+
                   const total = analyticsActivities
-                    .filter((a) => a.date.slice(0, 10) === key)
+                    .filter((a) => {
+                      const localDate = new Date(new Date(a.date).getTime() + TZ_OFFSET_MS)
+                        .toISOString().slice(0, 10)
+                      return localDate === key
+                    })
                     .reduce((s, a) => s + a.distanceKm, 0)
-                  return { day: dayLabels[d.getDay()], km: total, date: key }
+
+                  return { label, km: total, isToday: offsetDays === 0, key }
                 })
+
                 const maxKm = Math.max(...buckets.map((b) => b.km), 1)
-                const todayKey = today.toISOString().slice(0, 10)
-                return buckets.map(({ day, km, date }, i) => {
+
+                return buckets.map(({ label, km, isToday }, i) => {
                   const pct = Math.round((km / maxKm) * 100)
-                  const isToday = date === todayKey
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${km.toFixed(1)} km`}>
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${label}: ${km.toFixed(1)} km`}>
                       <div className="w-full flex flex-col justify-end" style={{ height: '64px' }}>
                         <div
-                          className={['w-full rounded-sm transition-all duration-300', isToday ? 'bg-orange-500' : pct === 0 ? 'bg-slate-100' : 'bg-slate-200'].join(' ')}
+                          className={['w-full rounded-sm transition-all duration-300',
+                            isToday ? 'bg-orange-500' : pct === 0 ? 'bg-slate-100' : 'bg-slate-200',
+                          ].join(' ')}
                           style={{ height: `${Math.max(pct, pct > 0 ? 8 : 0)}%` }}
                           role="img"
-                          aria-label={`${day}: ${km.toFixed(1)} km`}
+                          aria-label={`${label}: ${km.toFixed(1)} km`}
                         />
                       </div>
-                      <span className={['text-[10px] font-bold', isToday ? 'text-orange-600' : 'text-slate-400'].join(' ')}>{day}</span>
+                      <span className={['text-[9px] font-bold',
+                        isToday ? 'text-orange-600' : 'text-slate-400',
+                      ].join(' ')}>{label}</span>
                     </div>
                   )
                 })

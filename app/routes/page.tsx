@@ -20,15 +20,17 @@ import {
 import { ManualActivityModal } from '@/app/components/Modals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
+
 interface StravaMap {
   summary_polyline: string
 }
 
+/** Shape returned by /api/strava/history */
 interface StravaActivity {
   id: number
   name: string
   type: string
-  start_date_local: string   // ISO local time
+  start_date_local: string
   distance: number            // metres
   moving_time: number         // seconds
   elapsed_time: number        // seconds
@@ -42,7 +44,38 @@ interface StravaActivity {
   kudos_count: number
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+/** Shape returned by /api/routes (Prisma Route model) */
+interface DbRoute {
+  id: string
+  name: string
+  distance: number   // km
+  elevation: number  // metres
+  terrain: string
+  notes?: string | null
+  createdAt: string  // ISO
+}
+
+/**
+ * Normalised union used in the left-column list and detail panel.
+ * _key  → stable React key
+ * _src  → which branch to render in the detail panel
+ * _date → ISO string used for sort
+ * _km   → distance in km (consistent unit)
+ */
+interface UnifiedActivity {
+  _key: string
+  _src: 'strava' | 'manual'
+  _date: string
+  _km: number
+  name: string
+  typeLabel: string
+  achievementCount: number
+  strava?: StravaActivity
+  route?: DbRoute
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
 function fmtDistance(m: number) {
   return (m / 1000).toFixed(2)
 }
@@ -102,7 +135,7 @@ function decodePolylineToSVG(
   const scaleY = (H - pad * 2) / rangeY
 
   const toX = (lng: number) => pad + (lng - minLng) * scaleX
-  const toY = (lat: number) => H - pad - (lat - minLat) * scaleY // flip Y
+  const toY = (lat: number) => H - pad - (lat - minLat) * scaleY
 
   const points = coords.map(([lat, lng]) => `${toX(lng).toFixed(1)},${toY(lat).toFixed(1)}`).join(' ')
   const startX = toX(lngs[0])
@@ -115,14 +148,12 @@ function decodePolylineToSVG(
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-/** Compact polyline SVG used in the left-column cards */
 function MiniPolyline({ polyline, routeName }: { polyline: string; routeName: string }) {
   const W = 230, H = 80
   const decoded = decodePolylineToSVG(polyline, W, H, 8)
 
   return (
     <div className="relative h-20 bg-slate-50 rounded-sm overflow-hidden">
-      {/* grid */}
       <svg className="absolute inset-0 w-full h-full opacity-20" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
         {[20, 40, 60].map((y) => <line key={y} x1="0" y1={y} x2={W} y2={y} stroke="#94a3b8" strokeWidth="0.5" />)}
         {[46, 92, 138, 184].map((x) => <line key={x} x1={x} y1="0" x2={x} y2={H} stroke="#94a3b8" strokeWidth="0.5" />)}
@@ -135,7 +166,6 @@ function MiniPolyline({ polyline, routeName }: { polyline: string; routeName: st
             <circle cx={decoded.endX} cy={decoded.endY} r="3" fill="#ef4444" />
           </>
         ) : (
-          /* fallback wave when no polyline */
           <polyline points="15,60 50,45 85,55 120,35 155,48 185,30 215,40" stroke="#cbd5e1" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         )}
       </svg>
@@ -143,7 +173,6 @@ function MiniPolyline({ polyline, routeName }: { polyline: string; routeName: st
   )
 }
 
-/** Full-size polyline SVG for the detail panel */
 function LargePolyline({ activity }: { activity: StravaActivity }) {
   const W = 570, H = 340
   const decoded = decodePolylineToSVG(activity.map?.summary_polyline, W, H, 24)
@@ -155,7 +184,6 @@ function LargePolyline({ activity }: { activity: StravaActivity }) {
       role="img"
       aria-label={`Detailed map for ${activity.name}`}
     >
-      {/* grid */}
       <svg className="absolute inset-0 w-full h-full opacity-10" aria-hidden="true">
         {[...Array(12)].map((_, i) => (
           <line key={`h${i}`} x1="0" y1={`${(i + 1) * 8}%`} x2="100%" y2={`${(i + 1) * 8}%`} stroke="#64748b" strokeWidth="1" />
@@ -164,35 +192,26 @@ function LargePolyline({ activity }: { activity: StravaActivity }) {
           <line key={`v${i}`} x1={`${(i + 1) * 10}%`} y1="0" x2={`${(i + 1) * 10}%`} y2="100%" stroke="#64748b" strokeWidth="1" />
         ))}
       </svg>
-
-      {/* terrain blobs */}
       <div className="absolute top-12 left-16 w-24 h-24 rounded-full bg-green-100 opacity-40" aria-hidden="true" />
       <div className="absolute top-20 right-20 w-32 h-20 rounded-full bg-green-100 opacity-30" aria-hidden="true" />
       <div className="absolute bottom-16 left-32 w-20 h-16 rounded-full bg-slate-200 opacity-50" aria-hidden="true" />
 
       {decoded ? (
         <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-          {/* shadow */}
           <polyline points={decoded.points} stroke="rgba(0,0,0,0.1)" strokeWidth="6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          {/* main line */}
           <polyline points={decoded.points} stroke="#ea580c" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          {/* dashes */}
           <polyline points={decoded.points} stroke="white" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="8 12" opacity="0.6" />
-          {/* start */}
           <circle cx={decoded.startX} cy={decoded.startY} r="7" fill="#22c55e" />
           <circle cx={decoded.startX} cy={decoded.startY} r="12" fill="#22c55e" fillOpacity="0.2" />
-          {/* end */}
           <circle cx={decoded.endX} cy={decoded.endY} r="7" fill="#ef4444" />
           <circle cx={decoded.endX} cy={decoded.endY} r="12" fill="#ef4444" fillOpacity="0.2" />
         </svg>
       ) : (
-        /* no polyline fallback */
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">No map data available</p>
         </div>
       )}
 
-      {/* overlay badges */}
       <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-sm px-2 py-1 border border-slate-200">
         <span className="text-[10px] font-mono font-bold text-slate-600">
           {fmtDistance(activity.distance)} km · {Math.round(activity.total_elevation_gain)} m elev.
@@ -225,24 +244,28 @@ function StatBox({
   )
 }
 
-/** Left-column activity card */
 function ActivityCard({
   activity,
   isSelected,
   onClick,
 }: {
-  activity: StravaActivity
+  activity: UnifiedActivity
   isSelected: boolean
   onClick: () => void
 }) {
-  const km = fmtDistance(activity.distance)
-  const elev = Math.round(activity.total_elevation_gain)
-  const dateStr = fmtDateShort(activity.start_date_local)
-  const time = fmtTime(activity.moving_time)
+  const isStrava = activity._src === 'strava'
+  const dateStr = fmtDateShort(activity._date)
+  const km = activity._km.toFixed(2)
+  const elev = isStrava
+    ? Math.round(activity.strava!.total_elevation_gain)
+    : Math.round(activity.route?.elevation ?? 0)
+  const pace = isStrava ? fmtPace(activity.strava!.average_speed) : '—'
+  const time = isStrava ? fmtTime(activity.strava!.moving_time) : null
+  const polyline = activity.strava?.map?.summary_polyline ?? ''
 
   return (
     <article
-      id={`activity-card-${activity.id}`}
+      id={`activity-card-${activity._key}`}
       onClick={onClick}
       className={[
         'bg-white border rounded-sm p-4 cursor-pointer transition-all duration-150 hover:shadow-md',
@@ -253,23 +276,27 @@ function ActivityCard({
       aria-label={`Activity: ${activity.name}`}
       aria-selected={isSelected}
     >
-      {/* header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-slate-900 text-sm truncate">{activity.name}</h3>
-            {activity.achievement_count > 0 && (
+            {isStrava && activity.achievementCount > 0 && (
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" aria-label="Achievement" />
             )}
           </div>
           <p className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
             <Clock className="w-3 h-3" aria-hidden="true" />
-            {dateStr} · {time}
+            {dateStr}{time ? ` · ${time}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
-          <span className="text-[10px] font-bold tracking-wider bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded-sm">
-            {activity.type.toUpperCase()}
+          <span className={[
+            'text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded-sm',
+            isStrava
+              ? 'bg-orange-50 text-orange-700 border border-orange-200'
+              : 'bg-slate-100 text-slate-500 border border-slate-200',
+          ].join(' ')}>
+            {activity.typeLabel.toUpperCase()}
           </span>
           {isSelected && (
             <span className="text-[10px] font-bold tracking-wider bg-orange-600 text-white px-1.5 py-0.5 rounded-sm">
@@ -279,15 +306,13 @@ function ActivityCard({
         </div>
       </div>
 
-      {/* mini map */}
-      <MiniPolyline polyline={activity.map?.summary_polyline} routeName={activity.name} />
+      <MiniPolyline polyline={polyline} routeName={activity.name} />
 
-      {/* quick stats */}
       <div className="mt-3 grid grid-cols-3 gap-2">
         {[
           { icon: Navigation, label: 'Dist', value: km, unit: 'km' },
           { icon: TrendingUp, label: 'Elev', value: String(elev), unit: 'm' },
-          { icon: Zap, label: 'Pace', value: fmtPace(activity.average_speed), unit: '/km' },
+          { icon: Zap, label: 'Pace', value: pace, unit: pace !== '—' ? '/km' : '' },
         ].map(({ icon: Icon, label, value, unit }) => (
           <div key={label} className="flex flex-col">
             <span className="flex items-center gap-0.5 text-[9px] font-bold tracking-widest text-slate-400 uppercase">
@@ -303,9 +328,12 @@ function ActivityCard({
       </div>
 
       <div className="mt-3 flex items-center justify-between">
-        <span className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-sm">
+        <span className={[
+          'flex items-center gap-1 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm',
+          isStrava ? 'text-slate-500 bg-slate-100' : 'text-blue-600 bg-blue-50',
+        ].join(' ')}>
           <Activity className="w-3 h-3" aria-hidden="true" />
-          STRAVA SYNCED
+          {isStrava ? 'STRAVA SYNCED' : 'MANUAL LOG'}
         </span>
         <ChevronRight className="w-3.5 h-3.5 text-orange-500" aria-hidden="true" />
       </div>
@@ -313,7 +341,6 @@ function ActivityCard({
   )
 }
 
-/** Skeleton card for loading state */
 function SkeletonCard() {
   return (
     <div className="bg-white border border-slate-200 rounded-sm p-4 animate-pulse">
@@ -333,35 +360,82 @@ function SkeletonCard() {
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
+
 export default function RoutesPage() {
-  const [activities, setActivities] = useState<StravaActivity[]>([])
+  const [activities, setActivities] = useState<UnifiedActivity[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null)
+  const [selected, setSelected] = useState<UnifiedActivity | null>(null)
   const [isManualOpen, setIsManualOpen] = useState(false)
 
+  /**
+   * Fetch Strava history AND DB routes in parallel.
+   * Normalise both into UnifiedActivity[], sort newest first.
+   * Strava errors are soft-failures (DB routes still show).
+   */
   async function fetchHistory() {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/strava/history?per_page=50')
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? `HTTP ${res.status}`)
+      const [stravaRes, routesRes] = await Promise.all([
+        fetch('/api/strava/history?per_page=50'),
+        fetch('/api/routes'),
+      ])
+
+      const unified: UnifiedActivity[] = []
+
+      if (stravaRes.ok) {
+        const stravaData: StravaActivity[] = await stravaRes.json()
+        for (const a of stravaData) {
+          unified.push({
+            _key: `strava-${a.id}`,
+            _src: 'strava',
+            _date: a.start_date_local,
+            _km: a.distance / 1000,
+            name: a.name,
+            typeLabel: a.type,
+            achievementCount: a.achievement_count,
+            strava: a,
+          })
+        }
+      } else {
+        console.warn('[routes] Strava unavailable:', stravaRes.status)
       }
-      const data: StravaActivity[] = await res.json()
-      setActivities(data)
-      if (data.length > 0) setSelectedActivity(data[0])
+
+      if (routesRes.ok) {
+        const dbRoutes: DbRoute[] = await routesRes.json()
+        for (const r of dbRoutes) {
+          unified.push({
+            _key: `route-${r.id}`,
+            _src: 'manual',
+            _date: r.createdAt,
+            _km: r.distance,
+            name: r.name,
+            typeLabel: r.terrain ?? 'Route',
+            achievementCount: 0,
+            route: r,
+          })
+        }
+      }
+
+      // Only throw a hard error if BOTH sources failed and we have nothing
+      if (unified.length === 0 && !stravaRes.ok && !routesRes.ok) {
+        throw new Error('Failed to load activities from any source')
+      }
+
+      // Sort newest first
+      unified.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime())
+
+      setActivities(unified)
+      if (unified.length > 0) setSelected(unified[0])
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load Strava history')
+      setError(err instanceof Error ? err.message : 'Failed to load activity history')
     } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchHistory()
-  }, [])
+  useEffect(() => { fetchHistory() }, [])
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -369,13 +443,13 @@ export default function RoutesPage() {
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
         <div>
           <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase mb-1">
-            Strava Activity History
+            Activity History
           </p>
           <h1 className="font-extrabold tracking-tight text-4xl sm:text-5xl text-slate-900 leading-none">
             MY ROUTES
           </h1>
           <p className="mt-2 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-            {isLoading ? 'Syncing…' : error ? 'Sync failed' : `${activities.length} Activities Synced`}
+            {isLoading ? 'Syncing…' : error ? 'Sync failed' : `${activities.length} Activities`}
           </p>
         </div>
 
@@ -410,29 +484,27 @@ export default function RoutesPage() {
         </div>
       </header>
 
-      {/* ── Error banner ──────────────────────────────────────────── */}
+      {/* ── Error banner (non-fatal) ─────────────────────────────── */}
       {error && (
         <div className="mb-5 bg-red-50 border border-red-200 rounded-sm px-4 py-3 flex items-start gap-2">
           <span className="text-red-500 font-bold text-xs mt-0.5">!</span>
           <div>
-            <p className="text-xs font-bold text-red-700">Strava sync failed</p>
+            <p className="text-xs font-bold text-red-700">Sync error</p>
             <p className="text-[11px] text-red-500 mt-0.5">{error}</p>
             <p className="text-[11px] text-red-400 mt-1">
-              Add <code className="bg-red-100 px-1 rounded">STRAVA_REFRESH_TOKEN</code> to your <code className="bg-red-100 px-1 rounded">.env</code> and visit{' '}
-              <a href="/api/strava/login" className="underline font-bold">
-                /api/strava/login
-              </a>{' '}
-              to authorize.
+              Add <code className="bg-red-100 px-1 rounded">STRAVA_REFRESH_TOKEN</code> to your{' '}
+              <code className="bg-red-100 px-1 rounded">.env</code> and visit{' '}
+              <a href="/api/strava/login" className="underline font-bold">/api/strava/login</a> to authorize.
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Main grid ─────────────────────────────────────────────── */}
+      {/* ── Main grid ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
 
-        {/* Left column — activity list */}
-        <aside aria-label="Strava activity list" className="lg:sticky lg:top-20">
+        {/* Left column — unified activity list */}
+        <aside aria-label="Activity list" className="lg:sticky lg:top-20">
           <div
             id="routes-list"
             className="space-y-3 overflow-y-auto pr-1"
@@ -440,22 +512,22 @@ export default function RoutesPage() {
           >
             {isLoading && [1, 2, 3].map((i) => <SkeletonCard key={i} />)}
 
-            {!isLoading && !error && activities.length === 0 && (
+            {!isLoading && activities.length === 0 && (
               <div className="p-6 bg-white border border-slate-200 rounded-sm text-center">
                 <Activity className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <p className="text-sm font-bold text-slate-500">No activities found</p>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Make sure your Strava account has runs recorded.
+                  Connect Strava or log a manual activity to get started.
                 </p>
               </div>
             )}
 
             {activities.map((act) => (
               <ActivityCard
-                key={act.id}
+                key={act._key}
                 activity={act}
-                isSelected={selectedActivity?.id === act.id}
-                onClick={() => setSelectedActivity(act)}
+                isSelected={selected?._key === act._key}
+                onClick={() => setSelected(act)}
               />
             ))}
           </div>
@@ -467,7 +539,6 @@ export default function RoutesPage() {
           className="bg-white border border-slate-200 rounded-sm shadow-sm p-5 flex flex-col gap-5"
         >
           {isLoading ? (
-            /* Skeleton detail */
             <div className="animate-pulse space-y-4">
               <div className="h-6 bg-slate-100 rounded w-1/3" />
               <div className="h-8 bg-slate-100 rounded w-1/2" />
@@ -476,109 +547,82 @@ export default function RoutesPage() {
                 {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-slate-100 rounded" />)}
               </div>
             </div>
-          ) : selectedActivity ? (
+          ) : selected && selected._src === 'strava' && selected.strava ? (
+            /* ── Strava detail ───────────────────────────────────── */
             <>
-              {/* Detail header */}
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">
-                    Current Focus
-                  </p>
-                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">
-                    {selectedActivity.name}
-                  </h2>
+                  <p className="text-[10px] font-bold tracking-[0.25em] text-orange-600 uppercase">Current Focus</p>
+                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">{selected.strava.name}</h2>
                   <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
                     <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-                    {fmtDate(selectedActivity.start_date_local)} · {fmtTime(selectedActivity.moving_time)}
+                    {fmtDate(selected.strava.start_date_local)} · {fmtTime(selected.strava.moving_time)}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`https://www.strava.com/activities/${selectedActivity.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    Open in Strava
-                  </a>
-                </div>
+                <a
+                  href={`https://www.strava.com/activities/${selected.strava.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-widest bg-orange-600 text-white rounded-sm hover:bg-orange-700 uppercase transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Open in Strava
+                </a>
               </div>
 
-              {/* Tags */}
               <div className="flex flex-wrap gap-2">
                 {[
-                  { label: selectedActivity.type, icon: Activity },
-                  { label: `${fmtPace(selectedActivity.average_speed)} /km`, icon: Zap },
-                  { label: `${Math.round(selectedActivity.total_elevation_gain)} m elev`, icon: TrendingUp },
+                  { label: selected.strava.type, icon: Activity },
+                  { label: `${fmtPace(selected.strava.average_speed)} /km`, icon: Zap },
+                  { label: `${Math.round(selected.strava.total_elevation_gain)} m elev`, icon: TrendingUp },
                 ].map(({ label, icon: Icon }) => (
-                  <span
-                    key={label}
-                    className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm"
-                  >
+                  <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
                     <Icon className="w-3 h-3 text-slate-400" />
                     {label.toUpperCase()}
                   </span>
                 ))}
               </div>
 
-              {/* Large SVG map */}
-              <LargePolyline activity={selectedActivity} />
+              <LargePolyline activity={selected.strava} />
 
-              {/* Stat boxes */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <StatBox
-                  id="stat-elevation"
-                  icon={TrendingUp}
-                  label="Elevation Gain"
-                  value={`${Math.round(selectedActivity.total_elevation_gain)} m`}
-                  sub="Total climb"
-                />
-                <StatBox
-                  id="stat-pace"
-                  icon={Zap}
-                  label="Avg Pace"
-                  value={fmtPace(selectedActivity.average_speed)}
-                  sub="min / km"
-                />
+                <StatBox id="stat-elevation" icon={TrendingUp} label="Elevation Gain"
+                  value={`${Math.round(selected.strava.total_elevation_gain)} m`} sub="Total climb" />
+                <StatBox id="stat-pace" icon={Zap} label="Avg Pace"
+                  value={fmtPace(selected.strava.average_speed)} sub="min / km" />
                 <StatBox
                   id="stat-heartrate"
                   icon={Heart}
-                  label={selectedActivity.average_heartrate ? 'Avg HR' : 'Calories'}
+                  label={selected.strava.average_heartrate ? 'Avg HR' : 'Calories'}
                   value={
-                    selectedActivity.average_heartrate
-                      ? `${Math.round(selectedActivity.average_heartrate)} bpm`
-                      : `~${Math.round(selectedActivity.distance / 1000 * 62)} kcal`
+                    selected.strava.average_heartrate
+                      ? `${Math.round(selected.strava.average_heartrate)} bpm`
+                      : `~${Math.round(selected.strava.distance / 1000 * 62)} kcal`
                   }
                   sub={
-                    selectedActivity.max_heartrate
-                      ? `Max ${Math.round(selectedActivity.max_heartrate)} bpm`
+                    selected.strava.max_heartrate
+                      ? `Max ${Math.round(selected.strava.max_heartrate)} bpm`
                       : 'Estimated'
                   }
                 />
               </div>
 
-              {/* Elevation delta section */}
               <div id="elevation-delta-section">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <BarChart2 className="w-4 h-4 text-slate-400" />
-                    <h3 className="text-xs font-bold tracking-widest text-slate-600 uppercase">
-                      Activity Summary
-                    </h3>
+                    <h3 className="text-xs font-bold tracking-widest text-slate-600 uppercase">Activity Summary</h3>
                   </div>
                   <span className="font-mono text-xs font-bold text-orange-600">
-                    +{Math.round(selectedActivity.total_elevation_gain)} m
+                    +{Math.round(selected.strava.total_elevation_gain)} m
                   </span>
                 </div>
-
-                {/* Summary info grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 rounded-sm p-3">
                   {[
-                    { icon: Navigation, label: 'Distance', value: `${fmtDistance(selectedActivity.distance)} km` },
-                    { icon: Clock, label: 'Moving Time', value: fmtTime(selectedActivity.moving_time) },
-                    { icon: Zap, label: 'Max Speed', value: `${fmtPace(selectedActivity.max_speed)} /km` },
-                    { icon: Flame, label: 'Kudos', value: String(selectedActivity.kudos_count) },
+                    { icon: Navigation, label: 'Distance', value: `${fmtDistance(selected.strava.distance)} km` },
+                    { icon: Clock, label: 'Moving Time', value: fmtTime(selected.strava.moving_time) },
+                    { icon: Zap, label: 'Max Speed', value: `${fmtPace(selected.strava.max_speed)} /km` },
+                    { icon: Flame, label: 'Kudos', value: String(selected.strava.kudos_count) },
                   ].map(({ icon: Icon, label, value }) => (
                     <div key={label} className="flex flex-col gap-0.5">
                       <span className="flex items-center gap-1 text-[9px] font-bold tracking-widest text-slate-400 uppercase">
@@ -591,10 +635,9 @@ export default function RoutesPage() {
                 </div>
               </div>
 
-              {/* Footer actions */}
               <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
                 <a
-                  href={`https://www.strava.com/activities/${selectedActivity.id}`}
+                  href={`https://www.strava.com/activities/${selected.strava.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 py-2 text-xs font-bold tracking-widest text-slate-600 border border-slate-200 rounded-sm hover:border-orange-500 hover:text-orange-600 uppercase transition-all flex items-center justify-center gap-1.5"
@@ -611,8 +654,66 @@ export default function RoutesPage() {
                 </button>
               </div>
             </>
+          ) : selected && selected._src === 'manual' && selected.route ? (
+            /* ── Manual route detail ─────────────────────────────── */
+            <>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold tracking-[0.25em] text-blue-600 uppercase">Manual Log</p>
+                  <h2 className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5">{selected.route.name}</h2>
+                  <p className="flex items-center gap-1 text-xs text-slate-400 mt-1">
+                    <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+                    {fmtDate(selected.route.createdAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: selected.route.terrain, icon: Layers },
+                  { label: `${selected.route.distance.toFixed(2)} km`, icon: Navigation },
+                  { label: `${Math.round(selected.route.elevation)} m elev`, icon: TrendingUp },
+                ].map(({ label, icon: Icon }) => (
+                  <span key={label} className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm">
+                    <Icon className="w-3 h-3 text-slate-400" />
+                    {label.toUpperCase()}
+                  </span>
+                ))}
+              </div>
+
+              <div className="relative bg-slate-100 rounded-sm overflow-hidden flex items-center justify-center" style={{ height: '240px' }}>
+                <MiniPolyline polyline="" routeName={selected.route.name} />
+                <p className="absolute text-[11px] font-bold tracking-widest text-slate-400 uppercase">No map data — manual entry</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <StatBox id="stat-elevation" icon={TrendingUp} label="Elevation"
+                  value={`${Math.round(selected.route.elevation)} m`} sub="Total climb" />
+                <StatBox id="stat-distance" icon={Navigation} label="Distance"
+                  value={`${selected.route.distance.toFixed(2)} km`} sub="km" />
+                <StatBox id="stat-kcal" icon={Flame} label="Est. Calories"
+                  value={`~${Math.round(selected.route.distance * 62)} kcal`} sub="Estimated" />
+              </div>
+
+              {selected.route.notes && (
+                <div className="bg-slate-50 rounded-sm p-3 border border-slate-200">
+                  <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">Notes</p>
+                  <p className="text-sm text-slate-600">{selected.route.notes}</p>
+                </div>
+              )}
+
+              <div className="flex pt-2 border-t border-slate-100">
+                <button
+                  onClick={fetchHistory}
+                  className="flex-1 py-2 text-xs font-bold tracking-widest bg-slate-900 text-white rounded-sm hover:bg-slate-700 uppercase transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Refresh
+                </button>
+              </div>
+            </>
           ) : (
-            /* No selection yet (empty state) */
+            /* ── Empty state ─────────────────────────────────────── */
             <div className="py-20 text-center text-slate-400 flex flex-col items-center">
               <MapPin className="w-12 h-12 mb-4 opacity-50" />
               <p className="text-sm font-bold">No activity selected</p>
